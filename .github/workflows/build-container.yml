@@ -13,7 +13,7 @@ jobs:
         run: docker build -t registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }} .
       - name: Verify container startup
         run: |
-          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
+          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_PUBLIC_ORIGIN=https://yifunlife-workplace.yifunlife.workers.dev -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
           sleep 35
           docker logs smoke
           docker cp smoke:/tmp/workplace-runtime/logs /tmp/workplace-smoke-logs || true
