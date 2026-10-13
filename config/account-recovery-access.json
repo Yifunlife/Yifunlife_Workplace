@@ -1,0 +1,29 @@
+{
+  "account_id": "5a472d15dc37681abce4ab6e4eb152c3",
+  "application": {
+    "name": "Yifun Workplace 账号找回",
+    "type": "self_hosted",
+    "domain": "yifunlife-workplace.yifunlife.workers.dev/account-recovery",
+    "session_duration": "15m",
+    "auto_redirect_to_identity": true,
+    "app_launcher_visible": false
+  },
+  "identity_provider": {
+    "name": "邮箱验证码",
+    "type": "onetimepin",
+    "config": {}
+  },
+  "policy": {
+    "name": "现有授权账号找回密码",
+    "decision": "allow",
+    "include": [
+      { "email": { "email": "markfang458@hotmail.com" } },
+      { "email": { "email": "yifunlife@hotmail.com" } }
+    ]
+  },
+  "required_api_permissions": [
+    "Access: Organizations, Identity Providers, and Groups Write",
+    "Access: Apps and Policies Write"
+  ],
+  "activation_status": "pending_zero_trust_activation_and_access_credentials"
+}
