@@ -13,12 +13,13 @@ jobs:
         run: docker build -t registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }} .
       - name: Verify container startup
         run: |
-          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=sqlite -e YIFUN_AUTH_MODE=password -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
+          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
           sleep 35
           docker logs smoke
           docker cp smoke:/tmp/workplace-runtime/logs /tmp/workplace-smoke-logs || true
           tail -n 35 /tmp/workplace-smoke-logs/*.log || true
-          docker inspect smoke --format '{{.State.Status}} {{.State.ExitCode}}'
+          test "$(docker inspect smoke --format '{{.State.Running}}')" = true
+          docker exec smoke python3 -c "import socket; [socket.create_connection(('127.0.0.1',p),5).close() for p in (8975,8991,8992,8993)]"
       - name: Push image
         env:
           REGISTRY_PASSWORD: ${{ secrets.CF_REGISTRY_PASSWORD }}
