@@ -1,0 +1,22 @@
+data/
+node_modules/
+dist/
+.next/
+.wrangler/
+__pycache__/
+*.pyc
+*.sqlite*
+*.db
+*.log
+.env
+.env.*
+!.env.example
+.dev.vars
+*.key
+.DS_Store
+
+# Restored from the verified source archive
+/modules/
+/migrations/
+/cloudflare/
+/scripts/

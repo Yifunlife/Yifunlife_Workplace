@@ -1,0 +1,19 @@
+{
+  "name": "yifunlife-workplace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "prepare:source": "python3 prepare_source.py",
+    "test:database": "python3 scripts/test_cloud_database.py"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "0.3.7",
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "wrangler": "4.149.0"
+  },
+  "packageManager": "pnpm@11.25.0"
+}

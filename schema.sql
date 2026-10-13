@@ -1,0 +1,74 @@
+BEGIN;
+CREATE TABLE customers(id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,contact TEXT NOT NULL DEFAULT '',phone TEXT NOT NULL DEFAULT '',email TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
+CREATE TABLE projects(id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,customer_id TEXT NOT NULL REFERENCES customers(id),location TEXT NOT NULL DEFAULT '',owner TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'active',version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
+CREATE TABLE employees(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE COLLATE NOCASE,name TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','ceo','sales','purchasing','engineering','warehouse','installation','aftersales','finance','supplier')),supplier_id TEXT REFERENCES suppliers(id),status TEXT NOT NULL DEFAULT 'active',password_hash TEXT NOT NULL,salt TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE employee_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES employees(id),expires REAL NOT NULL,csrf TEXT NOT NULL,project_id TEXT REFERENCES projects(id),quote_kind TEXT NOT NULL DEFAULT 'original',parent_order_id TEXT);
+CREATE TABLE login_attempts(email TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
+CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+INSERT INTO settings VALUES('finance_enabled','0'),('deposit_confirmation_role',''),('deposit_policy','per_order');
+CREATE TABLE audit_events(id TEXT PRIMARY KEY,entity TEXT NOT NULL,entity_id TEXT NOT NULL,action TEXT NOT NULL,actor_id TEXT,actor_name TEXT NOT NULL,detail_json TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE products(id TEXT PRIMARY KEY,sku TEXT NOT NULL,name TEXT NOT NULL,english_name TEXT NOT NULL DEFAULT '',specification TEXT NOT NULL DEFAULT '',unit TEXT NOT NULL DEFAULT '',image_key TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT 'quote',created_at TEXT NOT NULL);
+CREATE INDEX products_sku_idx ON products(sku);
+CREATE TRIGGER product_catalog_insert AFTER INSERT ON catalog_products BEGIN
+ INSERT INTO products(id,sku,name,english_name,specification,unit,image_key,created_at) VALUES(NEW.id,NEW.sku,NEW.name,NEW.english_name,NEW.specification,NEW.unit,NEW.image_key,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(id) DO UPDATE SET sku=NEW.sku,name=NEW.name,english_name=NEW.english_name,specification=NEW.specification,unit=NEW.unit,image_key=NEW.image_key;
+END;
+CREATE TRIGGER product_catalog_update AFTER UPDATE ON catalog_products BEGIN
+ UPDATE products SET sku=NEW.sku,name=COALESCE((SELECT name FROM product_overrides WHERE product_id=NEW.id),NEW.name),specification=COALESCE((SELECT specification FROM product_overrides WHERE product_id=NEW.id),NEW.specification),unit=COALESCE((SELECT unit FROM product_overrides WHERE product_id=NEW.id),NEW.unit),english_name=NEW.english_name,image_key=NEW.image_key WHERE id=NEW.id;
+END;
+CREATE TRIGGER product_override_insert AFTER INSERT ON product_overrides BEGIN
+ UPDATE products SET name=COALESCE(NEW.name,name),specification=COALESCE(NEW.specification,specification),unit=COALESCE(NEW.unit,unit) WHERE id=NEW.product_id;
+END;
+CREATE TRIGGER product_override_update AFTER UPDATE ON product_overrides BEGIN
+ UPDATE products SET name=COALESCE(NEW.name,(SELECT name FROM catalog_products WHERE id=NEW.product_id)),specification=COALESCE(NEW.specification,(SELECT specification FROM catalog_products WHERE id=NEW.product_id)),unit=COALESCE(NEW.unit,(SELECT unit FROM catalog_products WHERE id=NEW.product_id)) WHERE id=NEW.product_id;
+END;
+INSERT INTO products(id,sku,name,english_name,specification,unit,image_key,created_at) SELECT id,sku,name,english_name,specification,unit,image_key,strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM catalog_products;
+ALTER TABLE quotation_history ADD COLUMN project_id TEXT REFERENCES projects(id);
+ALTER TABLE quotation_history ADD COLUMN document_type TEXT NOT NULL DEFAULT 'original';
+ALTER TABLE quotation_history ADD COLUMN parent_order_id TEXT;
+ALTER TABLE quotation_history ADD COLUMN ordered_at TEXT;
+CREATE TRIGGER quotation_project_context AFTER INSERT ON quotation_history BEGIN
+ UPDATE quotation_history SET project_id=json_extract(NEW.snapshot_json,'$.workspaceProjectId'),document_type=COALESCE(json_extract(NEW.snapshot_json,'$.workspaceDocumentKind'),'original'),parent_order_id=json_extract(NEW.snapshot_json,'$.workspaceParentOrderId') WHERE id=NEW.id;
+END;
+CREATE TABLE order_baselines(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,project_id TEXT NOT NULL REFERENCES projects(id),quote_id TEXT NOT NULL UNIQUE REFERENCES quotation_history(id),kind TEXT NOT NULL CHECK(kind IN ('original','addition')),parent_order_id TEXT REFERENCES order_baselines(id),currency TEXT NOT NULL CHECK(currency IN ('CNY','USD')),agreed_minor INTEGER NOT NULL CHECK(agreed_minor>0),raw_snapshot TEXT NOT NULL,deposit_required_minor INTEGER CHECK(deposit_required_minor>=0),created_by TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL);
+CREATE TABLE baseline_lines(id TEXT PRIMARY KEY,baseline_id TEXT NOT NULL REFERENCES order_baselines(id),product_id TEXT REFERENCES products(id),source_product_id TEXT NOT NULL,name TEXT NOT NULL,sku TEXT NOT NULL,model TEXT NOT NULL DEFAULT '',specification TEXT NOT NULL,unit TEXT NOT NULL,quantity REAL NOT NULL CHECK(quantity>0),line_order INTEGER NOT NULL,raw_snapshot TEXT NOT NULL,UNIQUE(baseline_id,source_product_id));
+CREATE TRIGGER locked_quote_update BEFORE UPDATE ON quotation_history WHEN OLD.ordered_at IS NOT NULL AND (NEW.snapshot_json IS NOT OLD.snapshot_json OR NEW.contract_no IS NOT OLD.contract_no OR NEW.project_id IS NOT OLD.project_id OR NEW.final_amount IS NOT OLD.final_amount OR NEW.final_currency IS NOT OLD.final_currency OR NEW.is_finalized IS NOT OLD.is_finalized OR NEW.voided_at IS NOT OLD.voided_at OR NEW.archived_at IS NOT OLD.archived_at OR NEW.ordered_at IS NOT OLD.ordered_at) BEGIN SELECT RAISE(ABORT,'已下单报价锁定，请创建增项或变更记录'); END;
+CREATE TRIGGER locked_quote_delete BEFORE DELETE ON quotation_history WHEN OLD.ordered_at IS NOT NULL BEGIN SELECT RAISE(ABORT,'已下单报价不可删除'); END;
+CREATE TRIGGER baseline_no_update BEFORE UPDATE ON order_baselines BEGIN SELECT RAISE(ABORT,'成交基线不可覆盖'); END;
+CREATE TRIGGER baseline_no_delete BEFORE DELETE ON order_baselines BEGIN SELECT RAISE(ABORT,'成交基线不可删除'); END;
+CREATE TRIGGER baseline_line_no_update BEFORE UPDATE ON baseline_lines BEGIN SELECT RAISE(ABORT,'成交明细不可覆盖'); END;
+CREATE TABLE deposit_confirmations(id TEXT PRIMARY KEY,baseline_id TEXT NOT NULL REFERENCES order_baselines(id),amount_minor INTEGER NOT NULL CHECK(amount_minor>0),currency TEXT NOT NULL,reference TEXT NOT NULL,actor_id TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL,UNIQUE(baseline_id,reference));
+CREATE TABLE release_requests(id TEXT PRIMARY KEY,baseline_id TEXT NOT NULL REFERENCES order_baselines(id),reason TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),requested_by TEXT NOT NULL REFERENCES employees(id),decided_by TEXT REFERENCES employees(id),decision_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,decided_at TEXT);
+CREATE UNIQUE INDEX one_pending_release ON release_requests(baseline_id) WHERE status='pending';
+CREATE TABLE order_changes(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),baseline_line_id TEXT NOT NULL REFERENCES baseline_lines(id),new_product_id TEXT REFERENCES products(id),new_quantity REAL NOT NULL CHECK(new_quantity>=0),new_model TEXT NOT NULL DEFAULT '',reason TEXT NOT NULL,customer_evidence TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'draft',version INTEGER NOT NULL DEFAULT 1,confirmed_by TEXT REFERENCES employees(id),confirmed_at TEXT,created_by TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL);
+CREATE TABLE procurement_context(order_id TEXT PRIMARY KEY REFERENCES purchase_orders(id),project_id TEXT REFERENCES projects(id),baseline_id TEXT REFERENCES order_baselines(id),purpose TEXT NOT NULL CHECK(purpose IN ('project','stock','service')),service_ticket_id TEXT,created_at TEXT NOT NULL);
+ALTER TABLE order_items ADD COLUMN product_id TEXT REFERENCES products(id);
+ALTER TABLE order_items ADD COLUMN baseline_line_id TEXT REFERENCES baseline_lines(id);
+CREATE TABLE procurement_allocations(id TEXT PRIMARY KEY,baseline_line_id TEXT NOT NULL REFERENCES baseline_lines(id),order_item_id TEXT NOT NULL UNIQUE REFERENCES order_items(id),quantity REAL NOT NULL CHECK(quantity>0));
+CREATE TRIGGER po_guard_no_unlinked_item BEFORE INSERT ON order_items WHEN NEW.product_id IS NULL BEGIN SELECT RAISE(ABORT,'请先关联共用产品，再建立采购明细'); END;
+CREATE TABLE service_tickets(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),delivery_line_id TEXT,payload TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,created_by TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE service_parts(product_id TEXT PRIMARY KEY REFERENCES products(id),min_stock REAL NOT NULL DEFAULT 0,notes TEXT NOT NULL DEFAULT '');
+CREATE TABLE service_events(id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES service_tickets(id),actor_id TEXT REFERENCES employees(id),payload TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE service_requests(id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES service_tickets(id),product_id TEXT REFERENCES products(id),quantity REAL NOT NULL CHECK(quantity>0),note TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',created_by TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL,order_id TEXT REFERENCES purchase_orders(id));
+CREATE TABLE stock_reservations(id TEXT PRIMARY KEY,product_id TEXT NOT NULL REFERENCES products(id),quantity REAL NOT NULL CHECK(quantity>0),purpose TEXT NOT NULL CHECK(purpose IN ('delivery','service')),baseline_line_id TEXT REFERENCES baseline_lines(id),ticket_id TEXT REFERENCES service_tickets(id),status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','issued','cancelled')),actor_id TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL);
+CREATE TABLE stock_movements(id TEXT PRIMARY KEY,product_id TEXT NOT NULL REFERENCES products(id),quantity REAL NOT NULL CHECK(quantity!=0),kind TEXT NOT NULL,order_item_id TEXT REFERENCES order_items(id),ticket_id TEXT REFERENCES service_tickets(id),reference_id TEXT,note TEXT NOT NULL DEFAULT '',actor_id TEXT,created_at TEXT NOT NULL);
+CREATE INDEX stock_product_idx ON stock_movements(product_id);
+CREATE TRIGGER stock_guard BEFORE INSERT ON stock_movements WHEN (SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE product_id=NEW.product_id)+NEW.quantity < -0.000001 BEGIN SELECT RAISE(ABORT,'库存不足，不能扣成负数'); END;
+CREATE TRIGGER stock_no_update BEFORE UPDATE ON stock_movements BEGIN SELECT RAISE(ABORT,'库存流水不可覆盖'); END;
+CREATE TRIGGER stock_no_delete BEFORE DELETE ON stock_movements BEGIN SELECT RAISE(ABORT,'库存流水不可删除'); END;
+CREATE TRIGGER stock_receipt_guard BEFORE UPDATE OF stocked_quantity ON order_items WHEN NEW.stocked_quantity!=OLD.stocked_quantity AND NEW.product_id IS NULL BEGIN SELECT RAISE(ABORT,'入库前必须关联共用产品'); END;
+CREATE TRIGGER stock_receipt AFTER UPDATE OF stocked_quantity ON order_items WHEN NEW.stocked_quantity!=OLD.stocked_quantity BEGIN
+ INSERT INTO stock_movements(id,product_id,quantity,kind,order_item_id,note,actor_id,created_at) VALUES(lower(hex(randomblob(16))),NEW.product_id,NEW.stocked_quantity-OLD.stocked_quantity,'receipt',NEW.id,'采购入库／入库更正',NEW.stocked_by,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+END;
+CREATE TRIGGER stock_item_identity_guard BEFORE UPDATE OF product_id ON order_items WHEN OLD.stocked_quantity>0 AND NEW.product_id IS NOT OLD.product_id BEGIN SELECT RAISE(ABORT,'已入库产品不能直接换型'); END;
+CREATE TABLE deliveries(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),number TEXT NOT NULL UNIQUE,carrier TEXT NOT NULL,tracking_number TEXT NOT NULL,delivered_at TEXT NOT NULL,actor_id TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL);
+CREATE TABLE delivery_lines(id TEXT PRIMARY KEY,delivery_id TEXT NOT NULL REFERENCES deliveries(id),baseline_line_id TEXT NOT NULL REFERENCES baseline_lines(id),product_id TEXT NOT NULL REFERENCES products(id),quantity REAL NOT NULL CHECK(quantity>0),name_snapshot TEXT NOT NULL,model_snapshot TEXT NOT NULL,stock_movement_id TEXT NOT NULL UNIQUE REFERENCES stock_movements(id));
+CREATE TABLE customer_financial_entries(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),baseline_id TEXT NOT NULL REFERENCES order_baselines(id),kind TEXT NOT NULL CHECK(kind IN ('receipt','credit','surcharge')),amount_minor INTEGER NOT NULL CHECK(amount_minor!=0),currency TEXT NOT NULL CHECK(currency IN ('CNY','USD')),reference TEXT NOT NULL,note TEXT NOT NULL,change_id TEXT REFERENCES order_changes(id),reversal_of TEXT UNIQUE REFERENCES customer_financial_entries(id),actor_id TEXT NOT NULL REFERENCES employees(id),record_date TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE UNIQUE INDEX customer_finance_reference ON customer_financial_entries(baseline_id,kind,reference) WHERE reversal_of IS NULL;
+CREATE TRIGGER customer_finance_no_update BEFORE UPDATE ON customer_financial_entries BEGIN SELECT RAISE(ABORT,'财务记录只能追加冲销'); END;
+CREATE TRIGGER customer_finance_no_delete BEFORE DELETE ON customer_financial_entries BEGIN SELECT RAISE(ABORT,'财务记录不能删除'); END;
+CREATE TABLE shared_attachments(id TEXT PRIMARY KEY,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL,file_name TEXT NOT NULL,content_type TEXT NOT NULL,size INTEGER NOT NULL,object_key TEXT NOT NULL UNIQUE,actor_id TEXT NOT NULL REFERENCES employees(id),created_at TEXT NOT NULL);
+CREATE TABLE legacy_records(id TEXT PRIMARY KEY,source_system TEXT NOT NULL,source_environment TEXT NOT NULL,entity_type TEXT NOT NULL,legacy_id TEXT NOT NULL,raw_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',target_id TEXT,imported_at TEXT NOT NULL,UNIQUE(source_system,source_environment,entity_type,legacy_id));
+CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit_events BEGIN SELECT RAISE(ABORT,'操作历史不可覆盖'); END;
+CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit_events BEGIN SELECT RAISE(ABORT,'操作历史不可删除'); END;
+INSERT INTO workplace_migrations(name) VALUES('workplace/001');
+COMMIT;

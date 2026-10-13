@@ -1,0 +1,309 @@
+/* Shared brand source for Workplace and every business center. */
+:root {
+  --wp-font-ui: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --wp-primary: #264b82;
+  --wp-navigation: #183765;
+  --wp-navigation-active: #315789;
+  --wp-navigation-text: #e4edf9;
+  --wp-navigation-muted: #c4d2e6;
+  --wp-gold: #edbd0b;
+  --wp-focus: #b98500;
+  --wp-canvas: #f4f7fb;
+  --wp-surface: #ffffff;
+  --wp-text: #12233f;
+  --wp-muted: #586b84;
+  --wp-line: #dbe3ee;
+  --wp-field-line: #b9c7d9;
+  --wp-table-head: #f7f9fc;
+  --wp-hover: #eaf1fb;
+  --wp-warning: #6d5415;
+  --wp-warning-soft: #fff5d6;
+  --wp-success: #285c40;
+  --wp-success-soft: #e7f3ec;
+  --wp-danger: #953b35;
+  --wp-danger-soft: #fdeae8;
+  --wp-heading-size: 26px;
+  --wp-title-size: 20px;
+  --wp-body-size: 14px;
+  --wp-table-size: 13px;
+  --wp-caption-size: 12px;
+  --wp-center-nav-width: 208px;
+}
+
+/* Retain native component names while sharing their visual values. */
+html[data-workplace-center] {
+  --blue: var(--wp-primary);
+  --nav: var(--wp-navigation);
+  --navy: var(--wp-primary);
+  --navy-deep: var(--wp-navigation);
+  --green: var(--wp-primary);
+  --green-dark: var(--wp-navigation);
+  --sidebar: var(--wp-navigation);
+  --sidebar-muted: var(--wp-navigation-muted);
+  --accent: var(--wp-primary);
+  --accent-hover: var(--wp-navigation);
+  --accent-soft: var(--wp-hover);
+  --blue-soft: var(--wp-hover);
+  --mint: var(--wp-hover);
+  --gold: var(--wp-gold);
+  --yellow: var(--wp-gold);
+  --lime: var(--wp-warning);
+  --lime-bright: var(--wp-gold);
+  --ink: var(--wp-text);
+  --muted: var(--wp-muted);
+  --line: var(--wp-line);
+  --paper-deep: var(--wp-canvas);
+  --canvas: var(--wp-canvas);
+  --surface: var(--wp-surface);
+  --white: var(--wp-surface);
+  --amber: var(--wp-warning);
+  --amber-soft: var(--wp-warning-soft);
+  --signal: var(--wp-warning);
+  --signal-soft: var(--wp-warning-soft);
+  --red: var(--wp-danger);
+  --red-soft: var(--wp-danger-soft);
+  --success: var(--wp-success);
+  --success-soft: var(--wp-success-soft);
+  --confirmed: var(--wp-success);
+  color-scheme: light;
+  font-family: var(--wp-font-ui);
+  font-size: var(--wp-body-size);
+  line-height: 1.55;
+  color: var(--wp-text);
+  background: var(--wp-canvas);
+}
+html[data-workplace-center] body {
+  font-family: var(--wp-font-ui);
+  color: var(--wp-text);
+  background: var(--wp-canvas);
+}
+html[data-workplace-center] :is(button, input, select, textarea) {
+  font-family: var(--wp-font-ui);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: #edbd0b33;
+}
+html[data-workplace-center] :is(h1, h2, h3) {
+  font-family: var(--wp-font-ui);
+  font-weight: 650;
+  text-wrap: balance;
+}
+html[data-workplace-center] select {
+  color: var(--wp-text);
+  background-color: var(--wp-surface);
+}
+html[data-workplace-center] :focus-visible {
+  outline: 3px solid var(--wp-focus);
+  outline-offset: 3px;
+}
+html[data-workplace-center] :is(dialog, [role="dialog"]) {
+  overscroll-behavior: contain;
+}
+html[data-workplace-center] :is(.number, .metric-value, .priceRow, .priceValue, .summary strong) {
+  font-variant-numeric: tabular-nums;
+}
+html[data-workplace-center] ::selection {
+  background: var(--wp-gold);
+  color: var(--wp-text);
+}
+
+/* Shared navigation treatment: blue active surface and a gold marker. */
+html[data-workplace-center="quote"] { --paper: var(--wp-canvas); }
+html[data-workplace-center="procurement"] { --paper: var(--wp-surface); }
+html[data-workplace-center="quote"] :is(.sidebar, .ceoDashboardRail),
+html[data-workplace-center="procurement"] .sidebar {
+  background: var(--wp-navigation);
+  color: var(--wp-navigation-text);
+}
+html[data-workplace-center="quote"] :is(.navText small, .sideIntro p, .sideFoot, .subnav button, .sideFoot small),
+html[data-workplace-center="procurement"] :is(.app-brand span, .sidebar-projects p, .sidebar-projects small, .sidebar-route > p),
+html[data-workplace-center="aftersales"] :is(.nav-group, .side-note) {
+  color: var(--wp-navigation-muted);
+}
+html[data-workplace-center="procurement"] .sidebar nav a,
+html[data-workplace-center="aftersales"] :is(.nav-button, .nav-icon) {
+  color: var(--wp-navigation-text);
+}
+html[data-workplace-center="quote"] :is(.navGroup.selected .navHead, .ceoDashboardNav a.on),
+html[data-workplace-center="procurement"] .sidebar nav a.active,
+html[data-workplace-center="aftersales"] .nav-button.active {
+  background: var(--wp-navigation-active);
+  color: var(--wp-surface);
+  box-shadow: inset 3px 0 var(--wp-gold);
+}
+html[data-workplace-center="quote"] .navHead:hover,
+html[data-workplace-center="procurement"] .sidebar nav a:hover,
+html[data-workplace-center="aftersales"] .nav-button:hover {
+  background: var(--wp-navigation-active);
+  color: var(--wp-surface);
+}
+
+/* Primary actions, fields and table surfaces use the Workplace palette. */
+html[data-workplace-center] .primary {
+  background: var(--wp-primary);
+  color: var(--wp-surface);
+}
+html[data-workplace-center] .primary:hover:not(:disabled) {
+  background: var(--wp-navigation);
+  color: var(--wp-surface);
+}
+html[data-workplace-center="procurement"] .workflow-confirm[data-confirmed="true"],
+html[data-workplace-center="procurement"] .workflow-confirm[data-confirmed="true"]:hover:not(:disabled) {
+  background: var(--wp-success);
+  border-color: var(--wp-success);
+  color: var(--wp-surface);
+}
+html[data-workplace-center] :is(.secondary, .outline) {
+  color: var(--wp-primary);
+  border-color: var(--wp-line);
+  background: var(--wp-surface);
+}
+html[data-workplace-center] :is(.secondary, .outline):hover:not(:disabled) {
+  background: var(--wp-hover);
+  border-color: var(--wp-primary);
+}
+html[data-workplace-center] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+  border-color: var(--wp-field-line);
+}
+html[data-workplace-center] :is(table th, .data-table th) {
+  color: var(--wp-muted);
+  background: var(--wp-table-head);
+  font-size: var(--wp-caption-size);
+}
+html[data-workplace-center="quote"] .skuGridTable {
+  --ag-font-family: var(--wp-font-ui);
+  --ag-header-background-color: var(--wp-table-head);
+  --ag-header-foreground-color: var(--wp-muted);
+  --ag-border-color: var(--wp-line);
+  --ag-row-border-color: var(--wp-line);
+  --ag-odd-row-background-color: var(--wp-canvas);
+  --ag-selected-row-background-color: var(--wp-hover);
+  --ag-range-selection-border-color: var(--wp-primary);
+  --ag-input-focus-border-color: var(--wp-focus);
+}
+html[data-workplace-center="quote"] :is(.loginShell, .skuGridPage, .quoteHistoryPage, .ceoDashboardWorkspace) {
+  background: var(--wp-canvas);
+}
+html[data-workplace-center="quote"] :is(.catalogHead .eyebrow, .catalogHead p, .catalog .empty) {
+  color: var(--wp-muted);
+}
+html[data-workplace-center="quote"] :is(.catalogHead h2, .skuGridHeader h1, .quoteHistoryPageHeader h1, .ceoDashboardHeader h2),
+html[data-workplace-center="procurement"] .topbar h1,
+html[data-workplace-center="aftersales"] .page-heading h2 {
+  font-size: var(--wp-heading-size);
+  font-weight: 650;
+  letter-spacing: -.5px;
+  line-height: 1.4;
+}
+html[data-workplace-center="quote"] .sideIntro h1 {
+  font-size: var(--wp-title-size);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+/* The complete approved wordmark always remains legible and uncropped. */
+html[data-workplace-center="quote"] .companyLogo,
+html[data-workplace-center="procurement"] .brand-logo,
+html[data-workplace-center] :is(.brand img, .login-brand img, .client-report-header img) {
+  height: auto;
+  object-fit: contain;
+}
+html[data-workplace-center="aftersales"] .brand {
+  margin: 0 0 20px;
+  padding: 8px;
+  border-radius: 5px;
+  background: var(--wp-surface);
+}
+html[data-workplace-center="aftersales"] .brand-logo {
+  height: auto;
+  object-fit: contain;
+}
+@media (max-width: 1040px) and (min-width: 681px) {
+  html[data-workplace-center="aftersales"] .brand { padding: 4px; }
+  html[data-workplace-center="aftersales"] .brand-logo { width: 44px; }
+}
+@media (max-width: 680px) {
+  html[data-workplace-center="aftersales"] .brand { margin: 0 9px 0 0; padding: 5px; }
+  html[data-workplace-center="aftersales"] .brand-logo { width: 112px; max-width: none; }
+}
+@media (max-width: 640px) {
+  :root { --wp-heading-size: 24px; }
+}
+
+/* One desktop navigation width, including laptops. Mobile menus retain their native behavior. */
+@media (min-width: 901px) {
+  html[data-workplace-center="quote"] .workspace:not(.editorOpen),
+  html[data-workplace-center="quote"] .ceoDashboard,
+  html[data-workplace-center="procurement"] .app-shell,
+  html[data-workplace-center="aftersales"] .shell {
+    grid-template-columns: var(--wp-center-nav-width) minmax(0, 1fr);
+  }
+  html[data-workplace-center="quote"] .sidebar { padding-inline: 12px; }
+  html[data-workplace-center="quote"] .navText { min-width: 0; }
+  html[data-workplace-center="quote"] .ceoDashboardRail { padding-inline: 12px; }
+  html[data-workplace-center="quote"] .ceoDashboardBrand { width: 100%; }
+  html[data-workplace-center="aftersales"] .sidebar { padding: 26px 12px; }
+  html[data-workplace-center="aftersales"] .brand { margin: 0 0 20px; padding: 8px; }
+  html[data-workplace-center="aftersales"] .brand-logo { width: 100%; }
+  html[data-workplace-center="aftersales"] :is(.nav-group, .side-note) { display: block; }
+  html[data-workplace-center="aftersales"] .nav-button span { display: inline; }
+  html[data-workplace-center="aftersales"] .nav-button { justify-content: flex-start; }
+}
+@media (min-width: 961px) {
+  html[data-workplace-center="quote"] .workspace.editorOpen {
+    grid-template-columns: var(--wp-center-nav-width) minmax(0, 1fr);
+  }
+}
+
+/* Unified compact workspace refresh. */
+html[data-workplace-center]{--wp-canvas:#f5f7fb;--wp-line:#e0e6ef;--wp-muted:#66758b;--wp-primary:#28558a}
+html[data-workplace-center] :is(.panel,.ceo-card,.card,.surface,.metric-card){border:1px solid var(--wp-line);border-radius:12px;background:#fff;box-shadow:0 2px 8px #1b365308}
+html[data-workplace-center] :is(.panel-head,.ceo-card-head){padding:15px 18px;background:linear-gradient(100deg,#f9fbfe,#fff);border-bottom:1px solid var(--wp-line)}
+html[data-workplace-center] :is(.panel-head h2,.ceo-card-head h2){font-size:15px;line-height:1.4;margin:0}
+html[data-workplace-center] .page-head{padding:4px 0 16px;gap:16px;align-items:flex-start}
+html[data-workplace-center] .page-head h1{font-size:25px;letter-spacing:-.5px;line-height:1.3}
+html[data-workplace-center] .page-head p{font-size:12px;line-height:1.7;color:var(--wp-muted);max-width:760px}
+html[data-workplace-center] :is(button,.dashboard-link,.ceo-export){border-radius:7px;transition:background .15s,box-shadow .15s}
+html[data-workplace-center] button:not(:disabled):hover{box-shadow:0 2px 6px #1b365310}
+html[data-workplace-center] :is(input,select,textarea){border-radius:7px;border:1px solid #ccd6e3;background:#fff;min-height:36px;font-size:13px}
+html[data-workplace-center] :is(input,select,textarea):focus{border-color:#4c7bb2;box-shadow:0 0 0 3px #3b73b115}
+html[data-workplace-center] :is(th,td){font-size:12px;line-height:1.65;padding:11px 14px;vertical-align:top}
+html[data-workplace-center] th{font-size:11px;color:#65748a;background:#f5f8fc;font-weight:600;white-space:nowrap}
+html[data-workplace-center] tbody tr:nth-child(even){background:#fbfcfe}
+html[data-workplace-center] tbody tr:hover{background:#f0f5fc}
+html[data-workplace-center] td small{display:block;font-size:11px;color:var(--wp-muted);margin-top:3px;line-height:1.6}
+html[data-workplace-center] .tag{border-radius:5px;padding:3px 7px;font-size:10px;white-space:nowrap}
+html[data-workplace-center] .empty{padding:32px 20px;color:var(--wp-muted);font-size:12px;line-height:1.8;text-align:center;background:linear-gradient(#fff,#fafcff)}
+html[data-workplace-center] .empty strong{display:block;color:#344b68;font-size:14px;margin-bottom:5px}
+html[data-workplace-center] details{border:1px solid var(--wp-line);border-radius:8px;margin:10px 14px;background:#fff;overflow:hidden}
+html[data-workplace-center] summary{padding:11px 13px;font-size:12px;font-weight:600;color:#315789;cursor:pointer;background:#f6f9fd;line-height:1.6}
+html[data-workplace-center] details[open]>summary{border-bottom:1px solid var(--wp-line);background:#edf4fc}
+html[data-workplace-center] details>p{padding:0 14px;font-size:12px;line-height:1.8}
+html[data-workplace-center] details pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;font-size:11px;max-height:380px;overflow:auto}
+html[data-workplace-center] .records-caption{padding:9px 16px;font-size:10px;color:var(--wp-muted);background:#fafcff}
+html[data-workplace-center] .records-expand{margin:8px 12px 12px;border-style:dashed}
+html[data-workplace-center] .records-expand summary{text-align:center;font-size:11px}
+html[data-workplace-center] .records-expand[open] summary{text-align:left}
+html[data-workplace-center] dialog{border:1px solid var(--wp-line);border-radius:14px;box-shadow:0 20px 70px #182f5430;padding:24px}
+html[data-workplace-center] dialog::backdrop{background:#182f5466;backdrop-filter:blur(3px)}
+html[data-workplace-center] .form-help{font-size:11px;line-height:1.7;color:var(--wp-muted)}
+html[data-workplace-center="workplace"] .rail nav button{font-size:13px;border-radius:7px;margin:2px 0;min-height:38px}
+html[data-workplace-center="workplace"] .center-topbar{background:#fff;border-bottom:1px solid var(--wp-line)}
+html[data-workplace-center="workplace"] :is(.center-sections,.ops-tabs){gap:6px}
+html[data-workplace-center="workplace"] #content>.panel{margin-bottom:16px}
+@media(max-width:700px){html[data-workplace-center] :is(th,td){padding:9px 10px}html[data-workplace-center] .page-head h1{font-size:22px}}
+
+/* Compact record cells across department business pages. */
+#content:not(.module-area) .table-wrap th,#content:not(.module-area) .table-wrap td{padding:7px 11px;font-size:12px;line-height:1.4;vertical-align:middle}
+#content:not(.module-area) .table-wrap td small{font-size:11px;margin-top:2px;line-height:1.4}
+#content .records-caption{padding:7px 12px;font-size:11px}
+#content .records-expand>summary{padding:9px 12px;font-size:12px}
+#content .ops-toolbar{gap:10px;padding:12px 14px;border-radius:12px}
+
+/* Compact first-load placeholders; previously loaded reads reuse tab-local data. */
+.page-skeleton{display:grid;gap:10px;padding:18px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:16px}
+.page-skeleton>div{height:32px;border-radius:5px;background:linear-gradient(90deg,#edf1f7,#f7f9fc,#edf1f7);background-size:200% 100%;animation:page-load 1.4s ease-in-out infinite}
+.page-skeleton>div:nth-child(2){width:85%}.page-skeleton>div:nth-child(3){width:65%}
+.retained-module-frame{display:block;border:0;width:100%;height:calc(100vh - 180px);min-height:540px;background:#fff}
+@keyframes page-load{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.page-skeleton>div{animation:none}}
+@media(max-width:760px){.retained-module-frame{height:calc(100dvh - 150px);min-height:420px}}

@@ -1,0 +1,15 @@
+.git
+data
+**/node_modules
+**/dist
+**/.wrangler
+**/__pycache__
+**/*.pyc
+**/.dev.vars
+.env
+.env.*
+!.env.example
+**/*.db
+**/*.sqlite*
+**/*.key
+**/*.log
