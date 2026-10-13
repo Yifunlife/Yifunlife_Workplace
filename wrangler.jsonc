@@ -21,12 +21,10 @@
     }
   ],
   "vars": {
-    "AUTH_MODE": "password",
+    "AUTH_MODE": "access",
     "PUBLIC_ORIGIN": "https://yifunlife-workplace.yifunlife.workers.dev",
     "OWNER_EMAIL": "markfang458@hotmail.com",
-    "VIEWER_EMAILS": "yifunlife@hotmail.com",
-    "ACCESS_ISSUER": "https://autumn-fog-20b6.cloudflareaccess.com",
-    "ACCESS_AUD": "a312723d4279c868f6825ff3a5a7c51e4b3cec8248e79b42d080129186e1774c"
+    "VIEWER_EMAILS": "yifunlife@hotmail.com"
   },
   "durable_objects": {
     "bindings": [
@@ -52,7 +50,7 @@
   "containers": [
     {
       "class_name": "WorkplaceContainer",
-      "image": "./Dockerfile",
+      "image": "registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:414c268711901b55dcccc981516e4cf198d5a69a",
       "max_instances": 1,
       "instance_type": "standard-1"
     }
