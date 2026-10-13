@@ -1,18 +1,15 @@
-# YIFUN Workplace
+# Yifunlife Workplace
 
-Migration destination: Yifunlife/Yifunlife_Workplace and Cloudflare account 5a472d15dc37681abce4ab6e4eb152c3.
+完整集团看板部署在 https://yifunlife-workplace.yifunlife.workers.dev 。
 
-Run `python3 prepare_source.py` to restore the modules and migrations. Install dependencies with `pnpm install --frozen-lockfile`.
+## 2026-10-13 迁移记录
 
-This source includes the compact two-row sales department layout. Business database and attachments are not stored in this repository.
+原账号 MarkFang 的 102 张数据表、427 条记录已迁入 Yifunlife Cloudflare，数据库逐项比对一致。四个原始 R2 存储桶对象总数为 0。
 
-Migration status: source prepared; deployment and business data migration pending. Existing recovery configuration must be replaced for the destination account before production deployment. Do not switch the original site until migration and access checks pass.
+`backups/workplace-backup-20261013.enc` 为 AES-256-GCM 加密数据备份，包含数据库结构、记录和文件清单；不包含 Cloudflare 或 GitHub 凭据。解密密钥仅保存在迁移执行电脑的受限文件中，未上传 GitHub。
 
+网站运行时数据存放 Cloudflare。GitHub 保存代码、结构、迁移备份，不作为在线数据库。代码更新不得重置业务数据。
 
-## 迁移进度（2026-10-13）
+镜像构建工作流使用临时凭据，构建后删除。发布前生成新的 Cloudflare 镜像仓库凭据，构建成功后更新 wrangler.jsonc 的镜像版本再部署。
 
-代码已迁入 Yifunlife 私有仓库，容器构建成功，Cloudflare 新站已部署。
-新站：https://yifunlife-workplace.yifunlife.workers.dev
-入口保持关闭，等待原账号数据库及附件完整迁移和核验。原站仍保留。
-原账号 Access 恢复配置已移除，恢复入口需在新账号重新配置。
-构建工作流使用短期镜像仓库凭据，构建后已删除；后续构建需重新签发。
+原账号 Cloudflare Access 密码恢复入口尚未迁移，目标站已移除旧账号配置；账号密码及业务权限随数据库保留。
