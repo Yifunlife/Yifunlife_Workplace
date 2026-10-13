@@ -1,0 +1,22 @@
+name: Build Workplace container
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build image
+        run: docker build -t registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }} .
+      - name: Push image
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.CF_REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$REGISTRY_PASSWORD" | docker login registry.cloudflare.com -u v1 --password-stdin
+          docker push registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
+      - name: Clear registry login
+        if: always()
+        run: docker logout registry.cloudflare.com
