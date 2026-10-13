@@ -1,0 +1,19 @@
+name: Diagnose container startup
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check startup
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.CF_REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$REGISTRY_PASSWORD" | docker login registry.cloudflare.com -u v1 --password-stdin
+          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:5a4b4ba306479a6eba8dc48c84bef95b507b3090
+          sleep 30
+          docker logs smoke
+          docker cp smoke:/tmp/workplace-runtime/logs /tmp/workplace-smoke-logs || true
+          tail -n 50 /tmp/workplace-smoke-logs/*.log || true
+          test "$(docker inspect smoke --format '{{.State.Running}}')" = true
