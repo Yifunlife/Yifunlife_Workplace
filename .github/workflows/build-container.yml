@@ -1,31 +1,72 @@
-name: Build Workplace container
+name: Deploy Workplace
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: workplace-production
+  cancel-in-progress: false
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 5a472d15dc37681abce4ab6e4eb152c3
+      WRANGLER_SEND_METRICS: 'false'
+      CI: 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Check deployment credential
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo '::error::Add CLOUDFLARE_API_TOKEN to repository Actions secrets before deployment.'
+            exit 1
+          fi
+      - name: Install pinned dependencies
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+      - name: Verify account permissions and authentication
+        run: python3 scripts/test_cloud_auth.py
       - name: Build image
-        run: docker build -t registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }} .
+        run: docker build -t yifunlife-workplace:${{ github.sha }} .
       - name: Verify container startup
         run: |
-          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_PUBLIC_ORIGIN=https://yifunlife-workplace.yifunlife.workers.dev -e YIFUN_DATA_ROOT=/tmp/workplace-runtime registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
-          sleep 35
-          docker logs smoke
-          docker cp smoke:/tmp/workplace-runtime/logs /tmp/workplace-smoke-logs || true
-          tail -n 35 /tmp/workplace-smoke-logs/*.log || true
-          test "$(docker inspect smoke --format '{{.State.Running}}')" = true
-          docker exec smoke python3 -c "import socket; [socket.create_connection(('127.0.0.1',p),5).close() for p in (8975,8991,8992,8993)]"
-      - name: Push image
+          docker run -d --name smoke -e YIFUN_DATABASE_BACKEND=local -e YIFUN_AUTH_MODE=password -e YIFUN_PUBLIC_ORIGIN=https://yifunlife-workplace.yifunlife.workers.dev -e YIFUN_DATA_ROOT=/tmp/workplace-runtime yifunlife-workplace:${{ github.sha }}
+          ready=0
+          for attempt in $(seq 1 24); do
+            if docker exec smoke python3 -c "import socket; [socket.create_connection(('127.0.0.1',p),3).close() for p in (8975,8991,8992,8993)]" 2>/dev/null; then ready=1; break; fi
+            sleep 5
+          done
+          if [ "$ready" != 1 ]; then docker logs smoke; exit 1; fi
+      - name: Push verified image
         env:
-          REGISTRY_PASSWORD: ${{ secrets.CF_REGISTRY_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler containers push yifunlife-workplace:${{ github.sha }}
+      - name: Select this commit image
         run: |
-          printf '%s' "$REGISTRY_PASSWORD" | docker login registry.cloudflare.com -u v1 --password-stdin
-          docker push registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:${{ github.sha }}
-      - name: Clear registry login
+          python3 - <<'PYCONFIG'
+          import json, os
+          from pathlib import Path
+          p = Path('wrangler.jsonc')
+          config = json.loads(p.read_text())
+          assert config['account_id'] == os.environ['CLOUDFLARE_ACCOUNT_ID']
+          config['containers'][0]['image'] = 'registry.cloudflare.com/' + os.environ['CLOUDFLARE_ACCOUNT_ID'] + '/yifunlife-workplace:' + os.environ['GITHUB_SHA']
+          p.write_text(json.dumps(config, indent=2) + '\n')
+          PYCONFIG
+      - name: Deploy Worker and container
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler deploy
+      - name: Check public site and authentication boundary
+        run: python3 scripts/check_live_site.py
+      - name: Clear local registry credentials
         if: always()
         run: docker logout registry.cloudflare.com
