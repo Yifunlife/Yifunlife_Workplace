@@ -240,7 +240,7 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     scoped=lambda r:access.visible_project(db,user,r['project_id']) and (not project or r['project_id']==project)
     employees={r['id']:r['name'] for r in db.execute('SELECT id,name FROM employees')}
     projects={r['id']:dict(r) for r in db.execute('SELECT * FROM projects') if access.visible_project(db,user,r['id']) and (not project or r['id']==project)}
-    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None
+    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None
     def metric(key,label,value,unit='项',hint='截至今天'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
@@ -308,21 +308,11 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         design_report=design_dashboard.report(db,user,projects,records(db,user,'design',project)['items'],start,end,today)
         notices=design_report['notices']
     elif center=='quote':
-        quotes=[dict(r) for r in db.execute('SELECT * FROM quotation_history') if (scoped(r) if r['project_id'] else user['role'] in MANAGERS and not project) and (user['role'] in MANAGERS or r['created_by']==user['email']) and not r['archived_at'] and not r['voided_at']]
-        metric('created','本期报价记录',sum(in_period(r['generated_at']) for r in quotes),'份','按生成日；包含修订记录')
-        metric('draft','待成交确认',sum(not r['is_finalized'] and not r['ordered_at'] for r in quotes),'份')
-        metric('confirmed','已确认待下单',sum(bool(r['is_finalized']) and not r['ordered_at'] for r in quotes),'份')
-        metric('ordered','已转正式订单',sum(bool(r['ordered_at']) for r in quotes),'份')
-        for r in quotes:
-            if not r['ordered_at']:item(r,r['contract_no'] or r['project_name'],'已确认待下单' if r['is_finalized'] else '待成交确认','quote',r['project_name'],owner=r['created_by'])
-        notices=['报价编辑、产品库、历史记录继续使用原报价工作台。报价记录数不等于客户数或成交数。']
-        import connections
-        shared=connections.status(db,user,project)
-        if shared['enabled']:
-            metric('online_quotes','线上报价记录',sum(in_period(r['generated_at']) for r in shared['quotes']),'份','线上原始记录，含修订与归档；不计作正式订单')
-            for r in shared['quotes']:
-                item(r,r['contract_no'],'已作废' if r['voided_at'] else '已归档' if r['archived_at'] else '已确认' if r['is_finalized'] else '未确认','connections',r['project_name'],owner=r['created_by'])
-            notices.append('线上报价通过固定编号关联；本地订单与线上报价分开统计，避免重复计算。')
+        import costing_dashboard
+        quotes=[dict(r) for r in db.execute('SELECT * FROM quotation_history') if r['project_id'] in projects and (user['role'] in MANAGERS or r['created_by']==user['email'])]
+        orders=[dict(r) for r in db.execute('SELECT * FROM order_baselines') if scoped(r) and (user['role'] in MANAGERS or r['created_by']==user['id'])]
+        costing_report=costing_dashboard.report(db,user,projects,quotes,orders,start,end,today)
+        notices=costing_report['notices']
     elif center in ('engineering','factory'):
         engineering=operations.list_rows(db,user,'engineering',project)
         if center=='factory':engineering=[r for r in engineering if any(x['route']=='factory' for x in r['lines'])]
@@ -406,4 +396,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}

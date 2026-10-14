@@ -106,3 +106,14 @@
 .design-dashboard .design-total{font-weight:600}
 @media(max-width:800px){.design-dashboard .design-current{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:480px){.design-dashboard .design-current,.design-dashboard .design-completed{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Costing uses the shared department shell and a compact project table. */
+.costing-dashboard .costing-metrics{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.costing-dashboard .costing-metrics p{font-size:12px;margin:6px 0 0}
+.costing-dashboard .costing-table-wrap{max-width:100%;overflow-x:auto}
+.costing-dashboard .costing-table-wrap table{min-width:1080px}
+.costing-dashboard .costing-table-wrap th,.costing-dashboard .costing-table-wrap td{padding:8px 10px;line-height:1.35;vertical-align:middle}
+.costing-dashboard .costing-table-wrap td:not(:first-child):not(:last-child),.costing-dashboard .costing-table-wrap th{white-space:nowrap}
+.costing-dashboard .costing-table-wrap small{margin-top:2px}
+.costing-dashboard .costing-table-wrap .tag{padding:2px 6px}
+@media(max-width:900px){.costing-dashboard .costing-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}

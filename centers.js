@@ -22,7 +22,7 @@ async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
   const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design'].includes(id)?{project}:{})});
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -155,6 +155,20 @@ function renderTestAccountBoard(el,data){
  root.onclick=e=>{const b=e.target.closest('[data-test-account]');if(!b)return;const a=r.accounts.find(x=>x.id===b.dataset.testAccount);q('#life-detail').hidden=false;q('#life-detail').innerHTML=`<h3>${esc(a.platform)} / ${esc(a.name)}</h3><p>稳定账号编号：${esc(a.id)} · 总粉丝 ${number(a.fans)} · 月发布 ${a.month_posts} 条</p><p>区间花销 ${money(a.cost)} · 归属测试成交 ${money(a.sales)} · 投产比 ${ratio(a.ratio)}</p><p>测试成交使用独立模拟合同表；正式合同自动归属仍需后续接入。</p>`;q('#life-detail').scrollIntoView({block:'nearest'});};
  }
  root.addEventListener('change',async()=>{const p=q('#life-period').value,t=initial.today;const from=p==='today'?t:p==='month'?t.slice(0,7)+'-01':q('#life-start').value,to=p==='custom'?q('#life-end').value:t;if(from>to){q('#life-error').textContent='开始日期不能晚于结束日期';return}try{const d=await api('/api/centers/dashboard?'+new URLSearchParams({center:'marketing',from,to,currency:initial.currency}));q('#life-error').textContent='';paint(d.account_reporting);}catch(e){q('#life-error').textContent=e.message}});paint(initial);
+}
+
+function renderCostingBoard(el,data){
+ const d=data.costing,t=d.totals;
+ el.classList.add('department-dashboard','costing-dashboard');
+ const metric=(label,value,unit,hint)=>`<div><dt>${esc(label)}</dt><dd>${value==null?'待接入':esc(value)+`<small> ${unit}</small>`}</dd><p class="muted">${esc(hint)}</p></div>`;
+ const rows=d.projects.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.code)}</small></td><td>${esc(r.sales_owner)}</td><td>${esc(r.design_owner)}</td><td>${esc(r.costing_owner)}</td><td><span class="tag">${esc(r.state)}</span></td><td class="number">${r.count} 次</td><td class="number">${Object.entries(r.amounts).map(([c,v])=>centerMoney(v,c)).join('<br>')||(r.count?'待成交':'—')}</td><td>${esc(r.due||'待登记')}</td><td>${esc(r.progress)}</td></tr>`);
+ const actions=centerPages('quote').slice(1).map(([page,label])=>`<button class="secondary" data-view="${page}">${esc(label)}</button>`).join('');
+ el.innerHTML=head('核算部工作台','设计资料 · 核算记录 · 报价与成交',actions)+
+ `<form class="center-filters" id="center-filters"><label>统计截止日期<input name="to" type="date" value="${esc(data.period.to)}" required></label><button type="submit">应用</button><button type="button" class="quiet" data-action="center-reset">本月</button></form>`+
+ `<dl class="center-metrics costing-metrics">${metric('待接收资料',t.pending,'项','设计已确认，尚未生成报价')}${metric('核算进行中',t.active,'项','已生成报价，尚未确认')}${metric('待报价审核',t.review,'项','独立审核流程待接入')}${metric('本月已完成',t.monthly,'次','本月有效报价记录，含修订')}${metric('年核算总数量',t.annual,'次','本年有效报价记录，含修订')}</dl>`+
+ panel('全部任务 '+rows.length,rows.length?`<div class="costing-table-wrap">${table(['项目名称','商务负责人','设计负责人','核算负责人','状态','核算次数','成交金额','截止时间','当前进展'],rows)}</div>`:empty('暂无核算任务','设计资料确认或关联报价记录后自动显示。'))+
+ `<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
+ $('#center-filters').addEventListener('submit',e=>{e.preventDefault();const p=Object.fromEntries(new FormData(e.currentTarget));p.from=p.to.slice(0,7)+'-01';p.currency='CNY';centerFilters.quote=p;render();});
 }
 
 function renderDesignBoard(el,data){
