@@ -51,7 +51,7 @@ async function start(){
  state=null;dashboardData=null;dashboardList='';moduleLink='';view='tasks';routeRecord='';
  if($('#dialog').open)closeModal();session=await api('/api/auth/session');if(!session.authenticated){login();return;}
  project=session.project_id||'';if(can('admin','ceo'))view='dashboard';if(can('supplier'))view='procurement';
- const params=new URLSearchParams(location.search),requested=params.get('view');
+ const params=new URLSearchParams(location.search),requested=params.get('view')==='center-design-records'?'center-design':params.get('view');
  const allowed=new Set(['account',...workplaceCenters().flatMap(c=>c.pages.map(p=>p[0])),...(can('admin','ceo','sales','engineering')?['connections']:[]),...(can('supplier')?[]:['tasks','masters']),...(can('admin','ceo')?['dashboard','audit']:[]),...(can('admin')?['employees','migration']:[])]);
  if(requested&&allowed.has(requested))view=requested;if(can('admin','ceo')&&view==='tasks')view='dashboard';
  if(params.has('salesClient')){const linked=await api('/api/connections/sales-project?id='+encodeURIComponent(params.get('salesClient')));if(linked.project_id)params.set('project',linked.project_id);view='connections';}
@@ -85,7 +85,7 @@ function shell(){
 }
 async function refresh(){session=await api('/api/auth/session');if(!session.authenticated){login();return;}project=session.project_id||'';if(!can('supplier','finance'))state=await api('/api/view/overview'+(project?`?project=${encodeURIComponent(project)}`:''));else state={projects:[],products:[],baselines:[],customers:[]};const selector=$('#project-select');selector.innerHTML=`<option value="">${can('admin','ceo')?'全部项目':'我参与的项目'}</option>`+state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('');selector.value=project;await render();}
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
-async function render(){workplacePageUrl();const current=++renderGeneration;const section=sectionForView(view);const center=Boolean(modules[view])||['aftersales','finance'].includes(section?.id);const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
+async function render(){if(view==='center-design-records'){view='center-design';routeRecord='';}workplacePageUrl();const current=++renderGeneration;const section=sectionForView(view);const center=Boolean(modules[view])||['aftersales','finance'].includes(section?.id);const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
  $('#project-select').closest('label').hidden=['marketing','crm'].includes(section?.id)||['customers','leads','opportunities','quote-entry'].includes(view);
  $('#sales-center-label').hidden=section?.id!=='crm';
