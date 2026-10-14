@@ -27,6 +27,8 @@ def init():
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_links(token_hash TEXT PRIMARY KEY,email TEXT NOT NULL,expires REAL NOT NULL,created_by TEXT NOT NULL)')
         import test_accounts
         test_accounts.bootstrap(db)
+        import shared_demo
+        shared_demo.seed(db)
     BRIDGE_PATH.parent.mkdir(parents=True,exist_ok=True)
     if not BRIDGE_PATH.exists():
         BRIDGE_PATH.write_text(secrets.token_urlsafe(48));BRIDGE_PATH.chmod(0o600)
@@ -238,7 +240,8 @@ class Handler(BaseHTTPRequestHandler):
                     import test_accounts
                     exists=db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='demo_credential_migrations'").fetchone()
                     test_accounts_ready=bool(exists and db.execute("SELECT 1 FROM demo_credential_migrations WHERE name=?",(test_accounts.MARKER,)).fetchone())
-            return self.respond(200,{'test_accounts_ready':test_accounts_ready,'verified_email':identity,'cloud':runtime_config.container_mode(),'read_only':runtime_config.read_only(user) if user else runtime_config.container_mode() and identity!=runtime_config.owner_email(),'module_urls':runtime_config.module_urls(),'authenticated':bool(user),'needsSetup':setup,'user':public(user) if user else None,'csrf':user['csrf'] if user else None,'project_id':user['project_id'] if user else None,'modules':ROLES.get(user['role'],[]) if user else [],'centers':department_centers})
+                shared_demo_ready=bool(os.environ.get('YIFUN_DEMO_MODE')=='1' and db.execute("SELECT 1 FROM settings WHERE key='shared_department_demo_20261014_v2'").fetchone())
+            return self.respond(200,{'shared_demo_ready':shared_demo_ready,'test_accounts_ready':test_accounts_ready,'verified_email':identity,'cloud':runtime_config.container_mode(),'read_only':runtime_config.read_only(user) if user else runtime_config.container_mode() and identity!=runtime_config.owner_email(),'module_urls':runtime_config.module_urls(),'authenticated':bool(user),'needsSetup':setup,'user':public(user) if user else None,'csrf':user['csrf'] if user else None,'project_id':user['project_id'] if user else None,'modules':ROLES.get(user['role'],[]) if user else [],'centers':department_centers})
         if not user:raise core.Problem('请先登录统一工作平台',401)
         if path=='/api/connections':
             with database.connect() as db:

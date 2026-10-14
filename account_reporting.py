@@ -1,5 +1,6 @@
 """Test integration: one account ledger shared by operations and CEO."""
 import json
+import os
 from pathlib import Path
 import core
 from marketing_reporting import ADVERTISING_EXPENSE_TYPES
@@ -41,6 +42,7 @@ def save(db,user,kind,p):
 def report(db,start,end,today,currency='CNY'):
     year=today[:4]+'-01-01';month=today[:7]+'-01'
     output=[]
+    shared = os.environ.get('YIFUN_DEMO_MODE') == '1' and bool(db.execute("SELECT 1 FROM settings WHERE key='shared_department_demo_20261014_v2'").fetchone())
     for raw in db.execute('SELECT a.*,e.name owner FROM marketing_accounts a LEFT JOIN employees e ON a.owner_id=e.id ORDER BY CAST(a.id AS INTEGER)'):
         a=dict(raw);key=a['id']
         snaps=[dict(r) for r in db.execute('SELECT * FROM marketing_daily WHERE account_id=? ORDER BY day',(key,))]
@@ -50,6 +52,15 @@ def report(db,start,end,today,currency='CNY'):
         spends=[dict(r) for r in db.execute("SELECT * FROM marketing_spends WHERE account_id=? AND status='active' AND currency=?",(key,currency))]
         spend=lambda lo,hi,ads=False:sum(x['amount_minor'] for x in spends if lo<=x['record_date']<=hi and (not ads or x['expense_type'] in ADVERTISING_EXPENSE_TYPES))
         orders=[dict(r) for r in db.execute("SELECT * FROM marketing_test_contracts WHERE account_id=? AND status='active' AND currency=?",(key,currency))]
+        if shared:
+            from ceo_dashboard import local_day
+            orders=[o for o in orders if not o['id'].startswith('DEMO-CONTRACT-')]
+            for order in db.execute('''SELECT o.agreed_minor,o.created_at FROM order_baselines o
+                JOIN demo_costing_workflows w ON w.project_id=o.project_id
+                JOIN projects p ON p.id=o.project_id
+                WHERE w.source_account_id=? AND o.currency=? AND p.notes='共享测试项目' ''',(key,currency)):
+                date=local_day(order['created_at'])
+                if date: orders.append({'amount_minor':order['agreed_minor'],'day':date.isoformat()})
         sales=lambda lo,hi:sum(x['amount_minor'] for x in orders if lo<=x['day']<=hi)
         a.update(fans=total,month_gain=total-mb if total is not None and mb is not None else None,today_gain=total-tb if total is not None and tb is not None else None,month_posts=sum(x['posts'] for x in snaps if month<=x['day']<=today),cost=spend(start,end),sales=sales(start,end),month_cost=spend(month,today),month_sales=sales(month,today),annual_ads=spend(year,today,True),monthly_ads=spend(month,today,True))
         a['ratio']=a['sales']/a['cost'] if a['cost'] else None
@@ -60,4 +71,4 @@ def report(db,start,end,today,currency='CNY'):
         for k in ('cost','sales','month_cost','month_sales','annual_ads','monthly_ads','month_posts'):m[k]=sum(a[k] for a in rows)
         m['month_ratio']=m['month_sales']/m['month_cost'] if m['month_cost'] else None
         markets.append(m)
-    return {'test_mode':True,'currency':currency,'period':{'from':start,'to':end,'timezone':'Asia/Shanghai'},'today':today,'accounts':output,'markets':markets,'unassigned_spend_count':db.execute("SELECT COUNT(*) FROM marketing_spends WHERE status='active' AND account_id IS NULL").fetchone()[0]}
+    return {'shared_department_data':shared,'test_mode':True,'currency':currency,'period':{'from':start,'to':end,'timezone':'Asia/Shanghai'},'today':today,'accounts':output,'markets':markets,'unassigned_spend_count':db.execute("SELECT COUNT(*) FROM marketing_spends WHERE status='active' AND account_id IS NULL").fetchone()[0]}
