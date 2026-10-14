@@ -13,7 +13,7 @@ const centerOptions=items=>items.map(id=>({id,name:id}));
 const centerMoney=(minor,currency)=>minor==null?(currency==='OTHER'?'逐笔查看':'待接入'):`${currency==='OTHER'?'其他币种':currency} ${(minor/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 function centerPages(id){
  const native=id=>session.modules.includes(id);
- const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:native('quote')?[['quote','报价工作台'],['quote-entry','选择报价业务']]:[],engineering:[...(can('engineering','purchasing','admin','ceo')?[['technical','工程下单']]:[]),['installation','安装任务与验收'],['issues','现场问题']],procurement:native('procurement')?[['procurement','采购工作台']]:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[...(native('aftersales')?[['aftersales','售后工作台']]:[]),['equipment','设备与保修档案'],['returns','退换返修']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['technical','工程执行需求']]};
+ const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[['center-design-records','订单登记与处理']],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:native('quote')?[['quote','报价工作台'],['quote-entry','选择报价业务']]:[],engineering:[...(can('engineering','purchasing','admin','ceo')?[['technical','工程下单']]:[]),['installation','安装任务与验收'],['issues','现场问题']],procurement:native('procurement')?[['procurement','采购工作台']]:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[...(native('aftersales')?[['aftersales','售后工作台']]:[]),['equipment','设备与保修档案'],['returns','退换返修']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['technical','工程执行需求']]};
  if(id==='engineering'&&session.centers?.includes('factory'))pages.engineering.splice(1,0,['center-factory','工厂交接']);
  return [['center-'+id,'中心看板'],...(pages[id]||[])];
 }
@@ -22,7 +22,7 @@ async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
   const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm'].includes(id)?{project}:{})});
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -155,4 +155,21 @@ function renderTestAccountBoard(el,data){
  root.onclick=e=>{const b=e.target.closest('[data-test-account]');if(!b)return;const a=r.accounts.find(x=>x.id===b.dataset.testAccount);q('#life-detail').hidden=false;q('#life-detail').innerHTML=`<h3>${esc(a.platform)} / ${esc(a.name)}</h3><p>稳定账号编号：${esc(a.id)} · 总粉丝 ${number(a.fans)} · 月发布 ${a.month_posts} 条</p><p>区间花销 ${money(a.cost)} · 归属测试成交 ${money(a.sales)} · 投产比 ${ratio(a.ratio)}</p><p>测试成交使用独立模拟合同表；正式合同自动归属仍需后续接入。</p>`;q('#life-detail').scrollIntoView({block:'nearest'});};
  }
  root.addEventListener('change',async()=>{const p=q('#life-period').value,t=initial.today;const from=p==='today'?t:p==='month'?t.slice(0,7)+'-01':q('#life-start').value,to=p==='custom'?q('#life-end').value:t;if(from>to){q('#life-error').textContent='开始日期不能晚于结束日期';return}try{const d=await api('/api/centers/dashboard?'+new URLSearchParams({center:'marketing',from,to,currency:initial.currency}));q('#life-error').textContent='';paint(d.account_reporting);}catch(e){q('#life-error').textContent=e.message}});paint(initial);
+}
+
+function renderDesignBoard(el,data){
+ const d=data.design,t=d.totals;
+ el.classList.add('department-dashboard','design-dashboard');
+ const money=amounts=>Object.entries(amounts).map(([currency,value])=>centerMoney(value,currency)).join('<br>')||'待确认';
+ const summary=(label,value)=>`<div><dt>${esc(label)}</dt><dd>${value}<small> 单</small></dd></div>`;
+ const groupRows=d.groups.map(g=>`<tr><td><strong>${esc(g.name)}</strong></td>${[g.annual,g.monthly,g.active,...g.stages,g.overdue].map(v=>`<td class="design-number">${v}</td>`).join('')}</tr>`);
+ groupRows.push(`<tr class="design-total"><th>合计</th>${[t.annual,t.monthly,t.active,...t.stages,t.overdue].map(v=>`<th class="design-number">${v}</th>`).join('')}</tr>`);
+ const orders=d.orders.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.order_numbers.join('、')||r.code+' · 未签单')}</small></td><td class="design-number">${money(r.amounts)}</td><td class="design-number">${esc(r.customer_grade)}</td><td>${esc(r.project_type)}</td><td>${esc(r.sales_owner)}</td><td>${esc(r.design_owner)}</td><td><span class="tag">${esc(r.stage)}</span></td><td class="design-number">${esc(r.expected_date||'待排期')}</td><td class="design-number">${esc(r.actual_date||'—')}</td><td class="${r.overdue?'error':''}">${esc(r.alerts.join('；')||'—')}</td></tr>`);
+ el.innerHTML=head('设计部看板','项目方案 · 效果图 · 深化图纸 · 报价与生产交接',`<button class="secondary" data-view="center-design-records">设计订单登记与处理</button>`)+
+ `<form class="center-filters" id="center-filters"><label>统计截止日期<input name="to" type="date" value="${esc(data.period.to)}" required></label><input type="hidden" name="from" value="${esc(data.period.to.slice(0,7)+'-01')}"><input type="hidden" name="currency" value="CNY"><button type="submit">应用</button><button type="button" class="quiet" data-action="center-reset">本月</button><p>完成订单按截止日期汇总；在手订单反映当前状态。</p></form>`+
+ `<dl class="center-metrics design-completed">${summary('年设计完成总订单',t.annual)}${summary('月设计完成总订单',t.monthly)}</dl><dl class="center-metrics design-current">${['设计排单','设计中','报价交接中','生产交接中','当前逾期'].map((label,i)=>summary(label,i===4?t.overdue:t.stages[i])).join('')}</dl>`+
+ panel('各设计组订单情况',`<div class="design-table-wrap">${table(['设计组','年完成订单','月完成订单','在手订单','设计排单','设计中','报价交接中','生产交接中','当前逾期'],groupRows)}</div>`)+
+ panel('设计订单推进 · '+d.orders.length+' 单',orders.length?`<div class="design-table-wrap">${table(['订单','订单金额','客户等级','项目类型','商务负责人','设计负责人','当前阶段','预计完成时间','实际完成时间','重点关注'],orders)}</div>`:empty('暂无设计订单','从设计订单登记与处理提交需求，关联已有项目。'))+
+ `<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
+ $('#center-filters').addEventListener('submit',e=>{e.preventDefault();const p=Object.fromEntries(new FormData(e.currentTarget));p.from=p.to.slice(0,7)+'-01';centerFilters.design=p;render();});
 }

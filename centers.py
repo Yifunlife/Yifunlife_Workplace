@@ -13,7 +13,7 @@ CURRENCIES = ('CNY', 'USD', 'EUR', 'SAR', 'AED', 'AUD')
 SPEND_CURRENCIES = ('CNY', 'USD', 'EUR', 'SAR', 'AED', 'OTHER')
 SPEND_CHANNELS = ('抖音','小红书','视频号','YouTube','阿里巴巴国际站','独立站','Instagram','Facebook','TikTok','展会','其他渠道')
 SPEND_EXPENSES = ('广告费','平台服务费','内容制作费','达人合作费','展位费','差旅费','活动物料费','代理服务费','其他费用')
-NAMES = {'marketing':'运营中心','crm':'业务中心','design':'设计中心','projects':'项目中心','quote':'报价中心','engineering':'工程中心','procurement':'采购中心','stock':'仓库中心','aftersales':'售后中心','finance':'财务中心','factory':'工厂交接'}
+NAMES = {'marketing':'运营中心','crm':'销售中心','design':'设计中心','projects':'交付进度','quote':'核算中心','engineering':'工程中心','procurement':'采购中心','stock':'仓库中心','aftersales':'售后中心','finance':'财务中心','factory':'工厂交接'}
 DESIGN_STATES = {'queued':'待排设计','waiting_materials':'待补资料','in_progress':'设计中','review':'内部审核','waiting_confirmation':'待客户确认','revising':'修改中','confirmed':'客户已确认','handoff':'待工程接收','accepted':'工程已接收','cancelled':'已取消'}
 TRANSITIONS = {'queued':('waiting_materials','in_progress','cancelled'),'waiting_materials':('queued','in_progress','cancelled'),'in_progress':('review','waiting_confirmation','waiting_materials','cancelled'),'review':('in_progress','waiting_confirmation','revising','cancelled'),'waiting_confirmation':('confirmed','revising','cancelled'),'revising':('review','waiting_confirmation','cancelled'),'confirmed':('handoff','revising'),'handoff':('accepted','revising'),'accepted':(),'cancelled':()}
 TARGETS = {'marketing':('spend','月度投入预算','money'),'crm':('booked','月度成交目标','money'),'design':('completed','月度设计确认目标','count'),'projects':('delivered','月度交付批次目标','count'),'engineering':('released','月度工程下单目标','count'),'procurement':('new_orders','月度采购下单目标','count'),'stock':('delivered','月度交付批次目标','count'),'aftersales':('closed','月度售后关闭目标','count')}
@@ -240,7 +240,7 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     scoped=lambda r:access.visible_project(db,user,r['project_id']) and (not project or r['project_id']==project)
     employees={r['id']:r['name'] for r in db.execute('SELECT id,name FROM employees')}
     projects={r['id']:dict(r) for r in db.execute('SELECT * FROM projects') if access.visible_project(db,user,r['id']) and (not project or r['id']==project)}
-    metrics=[];rows=[];groups=[];notices=[];sales=None
+    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None
     def metric(key,label,value,unit='项',hint='截至今天'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
@@ -304,18 +304,9 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         sales={'lifecycle':sales_lifecycle,'funnel':funnel,'projects':sales_projects,'period_contract_count':sum(in_period(o['created_at']) for o in orders),'annual_contract_count':len(annual_orders)}
         notices.append('销售项目阶段沿用共用报价及正式订单：无有效报价归入设计中，已确认报价且未签单归入待签单；设计任务实际执行请查看设计中心。')
     elif center=='design':
-        tasks=records(db,user,'design',project)['items'];active=[r for r in tasks if r['status'] not in ('accepted','cancelled')]
-        due=[r for r in tasks if r['status']!='cancelled' and in_day(r['original_due_date'])]
-        timely=[r for r in due if r['completed_at'] and local_day(r['completed_at']).isoformat()<=r['original_due_date']]
-        metric('queued','待排／待资料',sum(r['status'] in ('queued','waiting_materials') for r in tasks),'项')
-        metric('active','设计处理中',sum(r['status'] in ('in_progress','review','revising') for r in tasks),'项')
-        metric('completed','本期客户确认',sum(in_period(r['completed_at']) for r in tasks),'项','按客户确认日期')
-        metric('on_time','首次承诺准时率',round(len(timely)*100/len(due),1) if due else None,'%','按本期首次承诺应交任务；含未完成')
-        if not due:metrics[-1]['empty_text']='暂无应交任务'
-        metric('handoff','待工程接收',sum(r['status']=='handoff' for r in tasks),'项')
-        groups=[{'label':label,'count':sum(r['status']==status for r in tasks)} for status,label in DESIGN_STATES.items()]
-        for r in active:item(r,r['title'],DESIGN_STATES[r['status']],'center-design-records',r['number']+' · '+(r['version_label'] or '尚未提交版本')+' · 修改 '+str(r['revision_count'])+' 轮',r['due_date'])
-        notices=['设计提交、客户确认、工程接收分别记录；调整排期保留首次承诺及原因。']
+        import design_dashboard
+        design_report=design_dashboard.report(db,user,projects,records(db,user,'design',project)['items'],start,end,today)
+        notices=design_report['notices']
     elif center=='quote':
         quotes=[dict(r) for r in db.execute('SELECT * FROM quotation_history') if (scoped(r) if r['project_id'] else user['role'] in MANAGERS and not project) and (user['role'] in MANAGERS or r['created_by']==user['email']) and not r['archived_at'] and not r['voided_at']]
         metric('created','本期报价记录',sum(in_period(r['generated_at']) for r in quotes),'份','按生成日；包含修订记录')
@@ -415,4 +406,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}

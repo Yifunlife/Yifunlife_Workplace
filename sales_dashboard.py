@@ -1,4 +1,5 @@
 """Sales lifecycle view of authorized shared records; no preview fixtures."""
+import design_dashboard
 import json
 from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
@@ -47,7 +48,7 @@ def report(db, user, projects, orders, quotes, start, end, today):
         buying=[b for b in purchases if b['project_id']==pid]
         lines=[i for i in items if i['order_id'] in {b['id'] for b in buying}]
         installations=[t for t in tasks if t['project_id']==pid and t['kind']=='installation']
-        active_design=any(d['status'] not in ('accepted','confirmed','handoff') for d in design)
+        active_design=design_dashboard.stage(design)=='设计中'
         production=any(i.get('workflow_stage')=='in_production' for i in lines)
         installation=any(t['status'] in ('in_progress','awaiting_acceptance') for t in installations)
         quote=next((q for q in quotes if q['project_id']==pid),None)
@@ -59,7 +60,7 @@ def report(db, user, projects, orders, quotes, start, end, today):
         due=min(deadlines) if deadlines else None
         alerts=[]
         if due and due<today and any(i['shipped_quantity']<i['quantity'] for i in lines):alerts.append('发货逾期')
-        if any(d['due_date'] and d['due_date']<today and d['status'] not in ('confirmed','handoff','accepted') for d in design):alerts.append('设计逾期')
+        if any(d['original_due_date'] and d['original_due_date']<today and d['status'] != 'accepted' for d in design):alerts.append('设计逾期')
         if any(t['due_date']<today and t['status']!='accepted' for t in installations):alerts.append('安装待推进')
         owner=db.execute("SELECT employee_id FROM project_members WHERE project_id=? AND assignment_role='owner'",(pid,)).fetchone()
         history=customer_orders[p['customer_id']]
@@ -75,7 +76,7 @@ def report(db, user, projects, orders, quotes, start, end, today):
         production_owner='、'.join(dict.fromkeys(i.get('production_completed_by') for i in lines if i.get('production_completed_by'))) or '待分配'
         departments=[
             {'name':'销售部','owner':person(owner[0]) if owner else p['owner'] or '待分配','status':'客户主联系人','note':'客户需求、成交范围与商务变更'},
-            {'name':'设计部','owner':'、'.join(dict.fromkeys(person(d['owner_id']) for d in design)) or '待分配','status':'设计中' if active_design else '已确认' if design else '未建任务','note':'方案版本、客户确认及承诺完成日期'},
+            {'name':'设计部','owner':'、'.join(dict.fromkeys(person(d['owner_id']) for d in design)) or '待分配','status':design_dashboard.stage(design),'note':'方案版本、客户确认及承诺完成日期'},
             {'name':'核算部','owner':next((e['name'] for e in employees.values() if e['email']==quote['created_by']),quote['created_by']) if quote else '待分配','status':'订单已确认' if signed else '已报价' if quote else '待报价','note':'报价版本、产品清单及增项'},
             {'name':'工程部','owner':person(engineering[0]['released_by'] or engineering[0]['created_by']) if engineering else '待分配','status':'已下达' if engineering and engineering[0]['status']=='released' else '草稿' if engineering else '待交接','note':'执行规格、图纸与工程单版本'},
             {'name':'采购部','owner':procurement_owner,'status':'生产中' if production else '采购跟进中' if buying else '待下单','note':'供应商、生产反馈及发货期限'},
@@ -88,11 +89,11 @@ def report(db, user, projects, orders, quotes, start, end, today):
         def last_day(records,field):
             dates=[local_day(r.get(field)) for r in records if r.get(field)]
             return max(dates).isoformat() if dates else None
-        design_done=bool(design) and all(d['status'] in ('confirmed','handoff','accepted') for d in design)
+        design_done=bool(design_dashboard.completed_date(design))
         production_done=bool(lines) and all(i['production_completed'] for i in lines)
         installation_done=bool(installations) and all(t['status']=='accepted' for t in installations)
         date_fields={
-            '设计部':(min((d['due_date'] for d in design if d['due_date']),default=None),last_day(design,'completed_at') if design_done else None,design_done),
+            '设计部':(min((d['due_date'] for d in design if d['due_date']),default=None),design_dashboard.completed_date(design),design_done),
             '工程部':(engineering[0]['required_date'] if engineering else None,last_day(engineering[:1],'released_at'),bool(engineering and engineering[0]['status']=='released')),
             '生产部':(None,last_day(lines,'production_completed_at') if production_done else None,production_done),
             '安装部':(max((t['due_date'] for t in installations),default=None),last_day(installations,'completed_at') if installation_done else None,installation_done),
@@ -102,7 +103,7 @@ def report(db, user, projects, orders, quotes, start, end, today):
             department.update(expected_date=expected,actual_date=actual,completed=completed)
         output.append({'id':pid,'name':p['name'],'departments':departments,'next_task':{'title':next_task['title'],'owner':person(next_task['owner_id']),'due':next_task['due_date']} if next_task else None,'market':market(p),'sales':person(owner[0]) if owner else p['owner'] or '待分配',
             'design_owner':'、'.join(dict.fromkeys(person(d['owner_id']) for d in design)) or '待分配',
-            'design_status':'设计中' if active_design else '已确认' if design else '未建任务',
+            'design_status':design_dashboard.stage(design),
             'design_due':min((d['due_date'] for d in design if d['due_date'] and d['status'] not in ('accepted','confirmed','handoff')),default=None),
             'engineering_owner':person(engineering[0]['released_by'] or engineering[0]['created_by']) if engineering else '待分配',
             'engineering_status':'已下达' if engineering and engineering[0]['status']=='released' else '草稿' if engineering else '待交接',
