@@ -87,7 +87,7 @@ async function refresh(){session=await api('/api/auth/session');if(!session.auth
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
 async function render(){workplacePageUrl();const current=++renderGeneration;const section=sectionForView(view);const center=Boolean(modules[view])||['aftersales','finance'].includes(section?.id);const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
- $('#project-select').closest('label').hidden=['marketing','crm'].includes(section?.id)||['customers','leads','opportunities','quote-entry'].includes(view);
+ $('#project-select').closest('label').hidden=['marketing','crm','design'].includes(section?.id)||['customers','leads','opportunities','quote-entry'].includes(view);
  $('#sales-center-label').hidden=section?.id!=='crm';
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));
  sections.hidden=!section||section.pages.length<2||section.id==='crm';sections.classList.toggle('center-sections-grouped',Boolean(group));
