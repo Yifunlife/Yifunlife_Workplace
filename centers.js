@@ -21,7 +21,7 @@ function centerPeriod(id){const today=opsDate();return centerFilters[id]||{from:
 async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
-  const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design'].includes(id)?{project}:{})});
+  const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
   const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
@@ -161,12 +161,12 @@ function renderCostingBoard(el,data){
  const d=data.costing,t=d.totals;
  el.classList.add('department-dashboard','costing-dashboard');
  const sample=d.shared_test_count>0;
- const metric=(label,value,hint)=>`<div><dt>${esc(label)}</dt><dd>${value==null?'—':String(value).padStart(2,'0')}</dd><p>${esc(hint)}</p></div>`;
+ const metric=(label,value,hint)=>`<div><dt>${esc(label)}</dt><dd>${value==null?'—':esc(value)}</dd><p>${esc(hint)}</p></div>`;
  const rows=d.projects.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.code)}${r.shared_test?' · 共享测试':''}</small></td><td>${esc(r.sales_owner)}</td><td>${esc(r.design_owner)}</td><td>${esc(r.costing_owner)}</td><td><span class="tag ${['待接收','待核算','待报价审核'].includes(r.state)?'pending':''}">${esc(r.state)}</span></td><td class="number">${r.count} 次</td><td class="number">${Object.entries(r.amounts).map(([c,v])=>centerMoney(v,c)).join('<br>')||(r.count?'待成交':'—')}</td><td>${esc(r.due||'待登记')}</td><td>${esc(r.progress)}</td></tr>`);
- el.innerHTML=`<header class="costing-heading"><div><div class="costing-eyebrow">COSTING WORKSPACE</div><h1>核算部工作台</h1><p>从设计资料到项目报价，每一笔成本有据可查</p></div><span class="costing-data-label">${sample?'共享测试数据 · 跨部门同步':'共用业务数据'}</span></header>`+
- `<label class="costing-date">统计截止日期<input id="costing-date" type="date" value="${esc(data.period.to)}" required></label>`+
- `<dl class="center-metrics costing-metrics">${metric('待接收资料',t.pending,'等待接收核算资料')}${metric('核算进行中',t.active,'成本与报价核算中')}${metric('待报价审核',t.review,sample?'等待负责人确认':'审核记录待接入')}${metric('本月已完成',t.monthly,'本月有效核算记录，含修订')}${metric('年核算总数量',t.annual,data.period.to.slice(0,4)+' 年累计，含修订')}</dl>`+
- `<section class="costing-task-section"><h2>全部任务 ${rows.length}</h2>${rows.length?`<div class="costing-table-wrap">${table(['项目名称','商务负责人','设计负责人','核算负责人','状态','核算次数','成交金额','截止时间','当前进展'],rows)}</div>`:empty('暂无核算任务','设计资料确认或关联报价记录后自动显示。')}</section>`+
+ el.innerHTML=head('核算部看板','设计资料 · 核算记录 · 报价与成交'+(sample?' · 共享测试数据':''),'')+
+ `<div class="center-filters"><label>统计截止日期<input id="costing-date" type="date" value="${esc(data.period.to)}" required></label></div>`+
+ `<dl class="center-metrics">${metric('待接收资料',t.pending,'等待接收核算资料')}${metric('核算进行中',t.active,'成本与报价核算中')}${metric('待报价审核',t.review,sample?'等待负责人确认':'审核记录待接入')}${metric('本月已完成',t.monthly,'本月有效核算记录，含修订')}${metric('年核算总数量',t.annual,data.period.to.slice(0,4)+' 年累计，含修订')}</dl>`+
+ panel('全部任务 '+rows.length,rows.length?`<div class="department-table-wrap">${table(['项目名称','商务负责人','设计负责人','核算负责人','状态','核算次数','成交金额','截止时间','当前进展'],rows)}</div>`:empty('暂无核算任务','设计资料确认或关联报价记录后自动显示。'))+
  `<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
  el.querySelector('#costing-date').addEventListener('change',e=>{if(!e.target.value||!e.target.checkValidity())return;const to=e.target.value;centerFilters.quote={from:to.slice(0,7)+'-01',to,currency:'CNY'};render();});
 }
@@ -182,8 +182,8 @@ function renderDesignBoard(el,data){
  el.innerHTML=head('设计部看板','项目方案 · 效果图 · 深化图纸 · 报价与生产交接','')+
  `<form class="center-filters" id="center-filters"><label>统计截止日期<input name="to" type="date" value="${esc(data.period.to)}" required></label><input type="hidden" name="from" value="${esc(data.period.to.slice(0,7)+'-01')}"><input type="hidden" name="currency" value="CNY"><button type="submit">应用</button><button type="button" class="quiet" data-action="center-reset">本月</button><p>完成订单按截止日期汇总；在手订单反映当前状态。</p></form>`+
  `<dl class="center-metrics design-completed">${summary('年设计完成总订单',t.annual)}${summary('月设计完成总订单',t.monthly)}</dl><dl class="center-metrics design-current">${['设计排单','设计中','报价交接中','生产交接中','当前逾期'].map((label,i)=>summary(label,i===4?t.overdue:t.stages[i])).join('')}</dl>`+
- panel('各设计组订单情况',`<div class="design-table-wrap">${table(['设计组','年完成订单','月完成订单','在手订单','设计排单','设计中','报价交接中','生产交接中','当前逾期'],groupRows)}</div>`)+
- panel('设计订单推进 · '+d.orders.length+' 单',orders.length?`<div class="design-table-wrap">${table(['订单','订单金额','客户等级','项目类型','商务负责人','设计负责人','当前阶段','预计完成时间','实际完成时间','重点关注'],orders)}</div>`:empty('暂无设计订单','关联设计记录后自动汇总。'))+
+ panel('各设计组订单情况',`<div class="design-table-wrap department-table-wrap">${table(['设计组','年完成订单','月完成订单','在手订单','设计排单','设计中','报价交接中','生产交接中','当前逾期'],groupRows)}</div>`)+
+ panel('设计订单推进 · '+d.orders.length+' 单',orders.length?`<div class="design-table-wrap department-table-wrap">${table(['订单','订单金额','客户等级','项目类型','商务负责人','设计负责人','当前阶段','预计完成时间','实际完成时间','重点关注'],orders)}</div>`:empty('暂无设计订单','关联设计记录后自动汇总。'))+
  `<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
  $('#center-filters').addEventListener('submit',e=>{e.preventDefault();const p=Object.fromEntries(new FormData(e.currentTarget));p.from=p.to.slice(0,7)+'-01';centerFilters.design=p;render();});
 }

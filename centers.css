@@ -107,41 +107,9 @@
 @media(max-width:800px){.design-dashboard .design-current{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:480px){.design-dashboard .design-current,.design-dashboard .design-completed{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* Costing uses the shared department shell and a compact project table. */
-.costing-dashboard .costing-metrics{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-.costing-dashboard .costing-metrics p{font-size:12px;margin:6px 0 0}
-.costing-dashboard .costing-table-wrap{max-width:100%;overflow-x:auto}
-.costing-dashboard .costing-table-wrap table{min-width:1080px}
-.costing-dashboard .costing-table-wrap th,.costing-dashboard .costing-table-wrap td{padding:8px 10px;line-height:1.35;vertical-align:middle}
-.costing-dashboard .costing-table-wrap td:not(:first-child):not(:last-child),.costing-dashboard .costing-table-wrap th{white-space:nowrap}
-.costing-dashboard .costing-table-wrap small{margin-top:2px}
-.costing-dashboard .costing-table-wrap .tag{padding:2px 6px}
-@media(max-width:900px){.costing-dashboard .costing-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
-
-/* Approved costing layout, with shared application navigation. */
-.costing-dashboard{color-scheme:light dark;--cost-bg:light-dark(#f5f6f8,#171b22);--cost-panel:light-dark(#fff,#212630);--cost-ink:light-dark(#202934,#edf1f5);--cost-sub:light-dark(#6c7583,#a9b3c1);--cost-line:light-dark(#e8ebef,#353c48);--cost-brand:light-dark(#245d51,#8cd1ba);--cost-wash:light-dark(#eaf3ef,#2a4038);background:var(--cost-bg);color:var(--cost-ink)}
-.costing-dashboard .costing-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
-.costing-dashboard .costing-eyebrow{font-size:12px;color:var(--cost-sub);letter-spacing:1px}
-.costing-dashboard .costing-heading h1{font-size:26px;margin:5px 0 8px;font-weight:600}
-.costing-dashboard .costing-heading p{font-size:14px;margin:0;color:var(--cost-sub)}
-.costing-dashboard .costing-data-label{font-size:12px;background:var(--cost-wash);color:var(--cost-brand);padding:6px 10px;border-radius:5px;white-space:nowrap}
-.costing-dashboard .costing-date{display:flex;align-items:center;gap:10px;margin:0 0 18px;color:var(--cost-sub);font-size:12px}
-.costing-dashboard .costing-date input{max-width:155px;min-height:34px;padding:5px 9px;background:var(--cost-panel);color:var(--cost-ink);border:1px solid var(--cost-line)}
-.department-dashboard.costing-dashboard .costing-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 24px;background:transparent;border:0;padding:0}
-.department-dashboard.costing-dashboard .costing-metrics>div{padding:18px 16px;border:1px solid var(--cost-line);border-radius:9px;background:var(--cost-panel);box-shadow:none}
-.department-dashboard.costing-dashboard .costing-metrics dt{color:var(--cost-sub);font-size:13px;font-weight:400;margin-bottom:10px}
-.department-dashboard.costing-dashboard .costing-metrics dd{font-size:30px;font-weight:500;color:var(--cost-ink)}
-.department-dashboard.costing-dashboard .costing-metrics p{font-size:12px;color:var(--cost-sub);margin-top:10px}
-.costing-dashboard .costing-task-section{background:transparent;border:0}
-.costing-dashboard .costing-task-section h2{font-size:15px;font-weight:600;color:var(--cost-brand);padding:10px 0 14px;margin:0;border-bottom:1px solid var(--cost-line)}
-.costing-dashboard .costing-table-wrap{background:var(--cost-panel);border-radius:0 0 7px 7px}
-.costing-dashboard .costing-table-wrap th{background:var(--cost-bg);color:var(--cost-sub);font-weight:400}
-.costing-dashboard .costing-table-wrap td,.costing-dashboard .costing-table-wrap th{padding:8px 10px;border-bottom:1px solid var(--cost-line)}
-.costing-dashboard .costing-table-wrap td small{color:var(--cost-sub);font-size:11px}
-.costing-dashboard .costing-table-wrap .tag{background:var(--cost-wash);color:var(--cost-brand)}
-.costing-dashboard .costing-table-wrap .tag.pending{background:light-dark(#fcf4e6,#423725);color:light-dark(#93651d,#edc17d)}
-.costing-dashboard .center-definitions,.costing-dashboard .center-definitions summary{color:var(--cost-sub)}
-@media(max-width:900px){.department-dashboard.costing-dashboard .costing-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:600px){.department-dashboard.costing-dashboard .costing-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.costing-dashboard .costing-heading{align-items:flex-start;flex-direction:column}.costing-dashboard .costing-date input{font-size:16px}}
-.costing-dashboard{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif}
-.costing-dashboard .costing-table-wrap table,.costing-dashboard .costing-table-wrap td,.costing-dashboard .costing-table-wrap td strong{color:var(--cost-ink)}
+/* Department tables share the same compact geometry. */
+.department-dashboard .department-table-wrap{max-width:100%;overflow-x:auto}
+.department-dashboard .department-table-wrap th,.department-dashboard .department-table-wrap td{padding:6px 8px;vertical-align:middle;line-height:1.35}
+.department-dashboard .department-table-wrap th{white-space:nowrap}
+.department-dashboard .department-table-wrap td strong,.department-dashboard .department-table-wrap td small{white-space:nowrap}
+.department-dashboard .department-table-wrap table{min-width:1080px}
