@@ -38,13 +38,20 @@ def report(db, user, projects, quotes, orders, start, end, today):
             'costing_owner': by_email.get(latest['created_by'], '待核对') if latest else '待分配',
             'state': state, 'count': len(own), 'amounts': dict(amounts), 'due': meta.get('due_date'),
             'progress': meta.get('progress') or ('正式订单已确认，成交金额含增项' if signed else '报价已确认，等待正式下单' if latest and latest['is_finalized'] else '报价文件已生成，发送情况待登记' if latest else '设计资料已确认，等待核算报价')})
+    # Revisions stay with the first effective quotation's reporting period.
+    first_dates = {}
+    for quote in valid:
+        date = local_day(quote['generated_at'])
+        if date:
+            pid = quote['project_id']
+            first_dates[pid] = min(first_dates.get(pid, date.isoformat()), date.isoformat())
     def count_since(day):
-        return sum(bool(local_day(q['generated_at']) and day <= local_day(q['generated_at']).isoformat() <= end) for q in valid)
+        return sum(day <= date <= end for date in first_dates.values())
     return {'shared_test_count': sum(r['shared_test'] for r in output), 'projects': output, 'totals': {'pending': sum(r['state'] in ('待核算','待接收') for r in output),
         'active': sum(r['state'] in ('已生成报价','核算中') for r in output), 'review': sum(r['state']=='待报价审核' for r in output) if workflow else None,
         'monthly': count_since(end[:7] + '-01'), 'annual': count_since(end[:4] + '-01-01')},
         'notices': ['标注共享测试的项目使用一套跨部门测试记录；测试状态、截止时间及发送记录仅属于模拟流程。', '项目编号、名称、商务负责人及设计负责人沿用销售和设计共用档案；核算负责人取最新有效报价创建人的员工姓名。',
-            '核算次数、月完成数及年核算总数量按有效报价记录计次，包含修订；已归档、已作废及未关联项目记录不计入。',
+            '月完成数及年核算总数量按项目去重，以首次有效报价日期归属月份和年度，同一项目的修订不重复计数。表格核算次数保留有效报价的实际次数，包含修订；已归档、已作废及未关联项目记录不计入。',
             '成交金额读取正式订单，含增项，与销售部同口径；不同币种分别显示，报价金额不作为成交金额。',
             '目前没有独立核算过程及报价审核记录，核算进行中暂以已生成但未确认的报价计数，待报价审核显示待接入。',
             '尚未登记核算截止时间和报价发送时间，分别显示待登记和发送情况待登记，不使用设计期限替代核算期限。']}
