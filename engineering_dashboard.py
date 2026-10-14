@@ -74,7 +74,7 @@ def report(db,user,projects,today):
         progress=json.loads(meta.get('progress_json') or '{}')
         if engineering and engineering['status']=='released' and progress.get('下单') is None:progress['下单']=100
         due=meta.get('delivery_date');days=(date.fromisoformat(due)-date.fromisoformat(today)).days if due else None
-        output.append({'id':order['id'],'project_id':pid,'name':project['name'],'number':order['number'],'stage':stage,
+        output.append({'shared_test':project.get('notes')=='共享测试项目','id':order['id'],'project_id':pid,'name':project['name'],'number':order['number'],'stage':stage,
             'sales_owner':owners('owner') or project.get('owner') or '待分配','design_owner':employees.get(design['owner_id'],{}).get('name','待分配') if design else '待分配',
             'costing_owner':by_email.get(quote['created_by'],'待核对') if quote else '待分配','engineering_owner':employees.get(owner,{}).get('name','待分配'),
             'owner_id':owner,'delivery_date':due,'days':days,'progress':progress,'blocker_dept':meta.get('blocker_dept',''),'blocker_reason':meta.get('blocker_reason',''),
