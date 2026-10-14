@@ -1,0 +1,1 @@
+CREATE TRIGGER executed_purchase_archive_guard BEFORE UPDATE OF archived_at ON purchase_orders WHEN OLD.archived_at IS NULL AND NEW.archived_at IS NOT NULL AND EXISTS(SELECT 1 FROM order_items WHERE order_id=OLD.id AND (production_completed>0 OR shipped_quantity>0 OR received_quantity>0 OR stocked_quantity>0)) BEGIN SELECT RAISE(ABORT,'采购已有实际执行，须先核对实物处理，不能直接作废后重复采购'); END;
