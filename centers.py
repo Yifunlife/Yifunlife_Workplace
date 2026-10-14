@@ -99,6 +99,9 @@ def history_changes(db,page,before,after):
     return [{'label':label,'before':display(key,before.get(key),before),'after':display(key,after.get(key),after)} for key,label in labels.items() if key in after and before.get(key)!=after.get(key)]
 
 def execute(db,user,action,p):
+    if action=='aftersales-progress':
+        import aftersales_dashboard
+        return aftersales_dashboard.save(db,user,p)
     if action=='engineering-progress':
         import engineering_dashboard
         return engineering_dashboard.save(db,user,p)
@@ -243,7 +246,7 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     scoped=lambda r:access.visible_project(db,user,r['project_id']) and (not project or r['project_id']==project)
     employees={r['id']:r['name'] for r in db.execute('SELECT id,name FROM employees')}
     projects={r['id']:dict(r) for r in db.execute('SELECT * FROM projects') if access.visible_project(db,user,r['id']) and (not project or r['id']==project)}
-    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None;engineering_report=None
+    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None;engineering_report=None;aftersales_report=None
     def metric(key,label,value,unit='项',hint='截至今天'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
@@ -363,6 +366,8 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
             if r['unavailable']>0 or r['reserved']>0:item(r,r['sku']+' · '+r['name'],'有待检库存' if r['unavailable'] else '项目已占用','inventory','在库 '+str(r['on_hand'])+' / 占用 '+str(r['reserved'])+' / 可用 '+str(r['available'])+' '+r['unit'])
         notices=['库存来自共用账本。选定项目时显示该项目相关产品的全仓余额，不代表该项目独占数量。']
     elif center=='aftersales':
+        import aftersales_dashboard
+        aftersales_report=aftersales_dashboard.report(db,user,projects,today)
         tickets=[dict(r) for r in db.execute('SELECT * FROM service_tickets') if scoped(r)]
         open_count=closed=overdue=0
         for r in tickets:
@@ -403,4 +408,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
