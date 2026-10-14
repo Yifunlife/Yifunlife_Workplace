@@ -113,3 +113,21 @@
 .department-dashboard .department-table-wrap th{white-space:nowrap}
 .department-dashboard .department-table-wrap td strong,.department-dashboard .department-table-wrap td small{white-space:nowrap}
 .department-dashboard .department-table-wrap table{min-width:1080px}
+
+.engineering-dashboard .engineering-metrics{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:7px}
+.engineering-dashboard .engineering-metrics>div{padding:0;min-width:0}
+.engineering-dashboard .engineering-metrics button{display:block;width:100%;text-align:left;background:transparent;color:var(--text);border:0;border-radius:9px;padding:10px 9px;box-shadow:none}
+.engineering-dashboard .engineering-metrics button[aria-pressed=true]{background:var(--pale,#edf3fb);color:var(--blue)}
+.engineering-dashboard .engineering-metrics dt{font-size:12px;white-space:nowrap}
+.engineering-dashboard .engineering-metrics dd{font-size:25px;margin:4px 0 0}
+.engineering-dashboard .engineering-progress{min-width:66px;font-variant-numeric:tabular-nums}
+.engineering-dashboard .engineering-progress span{display:block;font-size:12px}
+.engineering-dashboard .engineering-progress progress{display:block;height:5px;width:70px;margin-top:4px;accent-color:var(--blue)}
+.engineering-dashboard .department-table-wrap table{min-width:1330px}
+.engineering-dashboard .department-table-wrap td{padding:7px 8px}
+.engineering-dashboard .engineering-feedback{min-width:155px;max-width:220px;overflow-wrap:anywhere}
+.engineering-dashboard .engineering-feedback button{padding:2px 0;font-size:11px;min-height:0}
+.engineering-dashboard .engineering-alert-note{font-size:11px;color:var(--muted);padding:8px 12px;margin:0}
+.engineering-dashboard .engineering-alert{display:grid;grid-template-columns:minmax(160px,1fr) 115px minmax(200px,2fr) auto;gap:12px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:12px}
+.engineering-dashboard .engineering-alert small{display:block;color:var(--muted);margin-top:2px}
+@media(max-width:900px){.engineering-dashboard .engineering-metrics{display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px}.engineering-dashboard .engineering-metrics>div{flex:0 0 110px}.engineering-dashboard .engineering-alert{grid-template-columns:1fr auto}.engineering-dashboard .engineering-alert>div:nth-of-type(2){grid-column:1}}

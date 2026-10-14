@@ -22,7 +22,7 @@ async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
   const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -186,4 +186,27 @@ function renderDesignBoard(el,data){
  panel('设计订单推进 · '+d.orders.length+' 单',orders.length?`<div class="design-table-wrap department-table-wrap">${table(['订单','订单金额','客户等级','项目类型','商务负责人','设计负责人','当前阶段','预计完成时间','实际完成时间','重点关注'],orders)}</div>`:empty('暂无设计订单','关联设计记录后自动汇总。'))+
  `<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
  $('#center-filters').addEventListener('submit',e=>{e.preventDefault();const p=Object.fromEntries(new FormData(e.currentTarget));p.from=p.to.slice(0,7)+'-01';centerFilters.design=p;render();});
+}
+
+
+function renderEngineeringBoard(el,data){
+ const report=data.engineering,stages=['未排期','下单中','生产中','待安装','安装中','售后','未来订单'],depts=['下单','木工部','软包部','油漆部','铁车间','采购部','安装'];
+ let selected='总订单';
+ el.innerHTML='<div class="department-dashboard engineering-dashboard"></div>';const board=el.firstElementChild;
+ const metricNames=['总订单','未来订单','未排期订单','下单中订单','生产中订单','待安装中订单','安装中订单','售后订单'];
+ const stageFor={'未来订单':'未来订单','未排期订单':'未排期','下单中订单':'下单中','生产中订单':'生产中','待安装中订单':'待安装','安装中订单':'安装中','售后订单':'售后'};
+ const subset=label=>report.orders.filter(r=>label==='总订单'?r.stage!=='未来订单':r.stage===stageFor[label]);
+ const pct=v=>v==null?'<span class="muted">待登记</span>':`<div class="engineering-progress"><span>${v}%</span><progress max="100" value="${v}" aria-label="完成进度 ${v}%"></progress></div>`;
+ function draw(){
+  const rows=subset(selected);
+  board.innerHTML=head('工程部看板','订单排期 · 工程下单 · 生产安装 · 售后跟进')+`<dl class="center-metrics engineering-metrics">${metricNames.map(label=>`<div><button type="button" data-eng-filter="${label}" aria-pressed="${selected===label}"><dt>${label}</dt><dd>${subset(label).length}</dd></button></div>`).join('')}</dl>`+
+   panel(selected+' · '+rows.length,`<div class="department-table-wrap"><table><thead><tr>${['项目名称','商务负责人','设计负责人','核算负责人','工程负责人','下单进度','木工部','软包部','油漆部','铁车间','采购部','安装进度','问题反馈'].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.number)}</small><small>交货期：${esc(r.delivery_date||'待登记')}</small></td><td>${esc(r.sales_owner)}</td><td>${esc(r.design_owner)}</td><td>${esc(r.costing_owner)}</td><td>${esc(r.engineering_owner)}</td>${depts.map(d=>`<td>${pct(r.progress[d])}</td>`).join('')}<td class="engineering-feedback">${esc(r.issue||'暂无反馈')}${report.can_edit?`<small><button type="button" class="quiet" data-eng-edit="${esc(r.id)}">反馈 / 更新进度</button></small>`:''}</td></tr>`).join('')||'<tr><td colspan="13">当前没有此类订单</td></tr>'}</tbody></table></div>`)+
+   panel('交货重点提醒 · '+report.alerts.length+' 单',`<p class="engineering-alert-note">统计基准：${esc(report.today)} · 交货期10天以内及逾期未交付订单</p>${report.alerts.map(r=>`<div class="engineering-alert"><div><strong>${esc(r.name)}</strong><small>${esc(r.number)} · 交货期：${esc(r.delivery_date)}</small></div><span class="tag pending">${r.days<0?'已逾期 '+(-r.days)+' 天':r.days===0?'今天交货':'距交货 '+r.days+' 天'}</span><div>卡点部门：${esc(r.blocker_dept||'待登记')}<small>${esc(r.blocker_reason||'尚未登记卡点原因')}</small></div>${report.can_edit?`<button type="button" class="quiet" data-eng-edit="${esc(r.id)}">跟进</button>`:''}</div>`).join('')||'<p class="engineering-alert-note">暂无交货期10天以内的未交付订单</p>'}`)+`<details class="center-definitions"><summary>数据来源与统计说明</summary>${report.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
+ }
+ board.onclick=e=>{const filter=e.target.closest('[data-eng-filter]');if(filter){selected=filter.dataset.engFilter;draw();return;}const edit=e.target.closest('[data-eng-edit]');if(!edit)return;const r=report.orders.find(r=>r.id===edit.dataset.engEdit);if(!r)return;
+ const opts=(items,value)=>items.map(x=>`<option value="${esc(x)}" ${value===x?'selected':''}>${esc(x)}</option>`).join('');
+ const ownerOptions='<option value="">待分配</option>'+report.employees.map(e=>`<option value="${esc(e.id)}" ${r.owner_id===e.id?'selected':''}>${esc(e.name)}</option>`).join('');
+ modal(r.name+' · 工程进度与问题反馈',`<label>工程负责人<select name="owner_id">${ownerOptions}</select></label><label>交货期<input type="date" name="delivery_date" value="${esc(r.delivery_date||'')}"></label><label>当前阶段<select name="stage">${opts(r.stage==='未来订单'?['未来订单']:stages.filter(s=>s!=='未来订单'),r.stage)}</select></label>${depts.map((d,i)=>`<label>${d}进度（%）<input name="progress_${i}" type="number" min="0" max="100" step="1" value="${r.progress[d]??''}" placeholder="待登记"></label>`).join('')}<label>卡点部门<select name="blocker_dept"><option value="">待登记 / 无卡点</option>${opts(['工程部','设计部','核算部','商务部','木工部','软包部','油漆部','铁车间','采购部','安装部','其他'],r.blocker_dept)}</select></label><label class="full">卡点原因<textarea name="blocker_reason">${esc(r.blocker_reason)}</textarea></label><label class="full">问题反馈<textarea name="issue">${esc(r.issue)}</textarea></label>`,p=>centerCall('engineering-progress',{...p,id:r.id,project_id:r.project_id,version:r.version,progress:Object.fromEntries(depts.map((d,i)=>[d,p['progress_'+i]]))}));
+ };
+ draw();
 }

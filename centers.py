@@ -99,6 +99,9 @@ def history_changes(db,page,before,after):
     return [{'label':label,'before':display(key,before.get(key),before),'after':display(key,after.get(key),after)} for key,label in labels.items() if key in after and before.get(key)!=after.get(key)]
 
 def execute(db,user,action,p):
+    if action=='engineering-progress':
+        import engineering_dashboard
+        return engineering_dashboard.save(db,user,p)
     if action=='members':
         c.permit(user,'admin');employee=c.need(db,'employees',p.get('employee_id'))
         if employee['role']=='supplier':raise c.Problem('供应商账号不能分配内部中心职责')
@@ -240,7 +243,7 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     scoped=lambda r:access.visible_project(db,user,r['project_id']) and (not project or r['project_id']==project)
     employees={r['id']:r['name'] for r in db.execute('SELECT id,name FROM employees')}
     projects={r['id']:dict(r) for r in db.execute('SELECT * FROM projects') if access.visible_project(db,user,r['id']) and (not project or r['id']==project)}
-    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None
+    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None;engineering_report=None
     def metric(key,label,value,unit='项',hint='截至今天'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
@@ -313,7 +316,11 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         orders=[dict(r) for r in db.execute('SELECT * FROM order_baselines') if scoped(r) and (user['role'] in MANAGERS or r['created_by']==user['id'])]
         costing_report=costing_dashboard.report(db,user,projects,quotes,orders,start,end,today)
         notices=costing_report['notices']
-    elif center in ('engineering','factory'):
+    elif center=='engineering':
+        import engineering_dashboard
+        engineering_report=engineering_dashboard.report(db,user,projects,today)
+        notices=engineering_report['notices']
+    elif center=='factory':
         engineering=operations.list_rows(db,user,'engineering',project)
         if center=='factory':engineering=[r for r in engineering if any(x['route']=='factory' for x in r['lines'])]
         metric('draft','待下达工程单',sum(r['status']=='draft' for r in engineering),'份')
@@ -396,4 +403,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
