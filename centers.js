@@ -22,7 +22,7 @@ async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
   const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -293,4 +293,38 @@ async function renderAftersalesAnalysis(el,generation){
  root.addEventListener('change',e=>{if(e.target.id==='ra-case'){selected=e.target.value;draw();}if(e.target.id==='rr-period'){reportPeriod=e.target.value;reportSlide=0;drawReport();}});
  q('#ra-notices').innerHTML=analysis.notices.map(n=>'<p>'+text(n)+'</p>').join('');draw();drawReport();
  }catch(error){if(generation===renderGeneration)el.innerHTML=head('售后问题统计','读取失败，请刷新重试。')+'<p class="error">'+esc(error.message)+'</p>';}
+}
+
+function renderProcurementBoard(el,data){
+ const d=data.procurement;let tab='overview',expanded=null;
+ const table=(headers,rows)=>`<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+ const money=v=>v==null?'待核实':centerMoney(v,'CNY');
+ const qty=o=>Object.entries(o.units).map(([u,q])=>`${q} ${esc(u)}`).join(' / ')||'—';
+ const count=(o,key)=>{const a={};o.items.forEach(i=>a[i.unit]=(a[i.unit]||0)+i[key]);return Object.entries(a).map(([u,q])=>`${q} ${esc(u)}`).join(' / ')||'—'};
+ const stages=['待确认','待报价','待下单','待到货','待验收','待对账'];
+ const detail=o=>{const related=d.orders.filter(x=>o.project_id?x.project_id===o.project_id:x.id===o.id);const items=related.flatMap(x=>x.items.map(i=>({...i,order:x}))).sort((a,b)=>(a.received>=a.quantity)-(b.received>=b.quantity));return `<div class="pc-detail"><div class="pc-row"><h3>${esc(o.project)} · 全部采购物品</h3><button type="button" data-pc-close>收起详情</button></div>${table(['项目','采购物品','业务员','工程师','采购数量','已下单数量','已发货数量','已完成数量','到货情况','预计到货时间','卡点'],items.map(i=>`<tr><td>${esc(i.order.project)}</td><td>${esc(i.name)}<small>${esc(i.order.number)}</small></td><td>${esc(i.order.sales)}</td><td>${esc(i.order.engineer)}</td><td>${i.quantity} ${esc(i.unit)}</td><td>${i.ordered}</td><td>${i.shipped}</td><td>${i.completed}</td><td>${i.received>=i.quantity?'已到货':i.received?'部分到货':'未到货'}<small>已到 ${i.received}/${i.quantity}${i.actual?' · '+esc(i.actual.slice(0,10)):''}</small></td><td>待登记${i.order.estimated_ship?`<small>预计发货 ${esc(i.order.estimated_ship)}</small>`:''}</td><td class="pc-note">${esc(i.issue)}</td></tr>`))}<p class="pc-muted">未齐货在前，已到货在后。已完成为入库数量；尚无采购单的工程需求仍需在原工作台登记。</p></div>`};
+ const orderTable=rows=>rows.length?table(['采购单 / 项目','采购总数量','已下单数量','已发货数量','已完成数量','预计采购完成时间','跟进'],rows.map(o=>`<tr><td>${esc(o.number)}<small>${esc(o.project)}</small></td><td>${qty(o)}</td><td>${qty(o)}</td><td>${count(o,'shipped')}</td><td>${count(o,'completed')}</td><td>待登记</td><td><button type="button" class="quiet" data-pc-order="${esc(o.id)}" aria-expanded="${expanded===o.id}">${expanded===o.id?'收起':'详情'}</button></td></tr>${tab==='orders'&&expanded===o.id?`<tr><td colspan="7" class="pc-expanded">${detail(o)}</td></tr>`:''}`)):empty('暂无当前采购订单','采购工作台中的授权订单会自动汇总。');
+ const issues=d.orders.filter(o=>o.late||o.rejected).sort((a,b)=>Number(b.late)-Number(a.late));
+ function draw(){
+ el.classList.add('department-dashboard');
+ let html=head('采购中心','从采购需求到供应商确认、发货和验收。',session.modules.includes('procurement')?'<button class="secondary" data-view="procurement">采购工作台</button>':'')+`<div id="pc-board"><div class="pc-tabs">${[['overview','采购驾驶舱'],['orders','采购跟进'],['suppliers','供应商'],['payments','付款与对账']].map(([id,name])=>`<button type="button" data-pc-tab="${id}" aria-pressed="${tab===id}">${name}</button>`).join('')}</div>`;
+ if(tab==='overview'){
+ html+=`<p class="pc-muted">${esc(d.today)} · 当前账号授权数据 · 金额：人民币</p><dl class="center-metrics">${[['年总采购金额',money(d.year_amount),d.year+'年度累计'],['本月采购金额',money(d.month_amount),'本月累计'],['供应商付款率',d.paid_rate==null?'待核实':d.paid_rate+'%','剩余应付 '+money(d.remaining)],['未来7天待付款','待登记','尚无结构化付款到期计划']].map(([label,value,note])=>`<div><dt>${label}</dt><dd>${value}</dd><p>${note}</p></div>`).join('')}</dl>`;
+ html+=panel('采购流程',`<div class="pc-flow">${['总采购订单',...stages].map(s=>`<button type="button" data-pc-tab="orders">${s}<strong>${s==='总采购订单'?d.orders.length:['待报价','待下单'].includes(s)?'待接入':d.orders.filter(o=>o.stage===s).length}</strong></button>`).join('')}</div>`);
+ html+=panel('近期交付跟进',orderTable(d.orders.slice(0,5)));
+ html+=`<div class="pc-bottom">${panel('优先处理',issues.length?issues.slice(0,5).map(o=>`<p>${esc(o.project)} · ${o.late?'发货逾期':'验收异常'} <button type="button" class="quiet" data-pc-order="${esc(o.id)}">查看采购单</button></p>`).join(''):empty('暂无延期与验收异常','按当前采购记录统计。'))}${panel('本月采购结构',(()=>{const groups={};d.orders.filter(o=>o.order_date.startsWith(d.today.slice(0,7))&&o.currency==='CNY').forEach(o=>groups[o.supplier]=(groups[o.supplier]||0)+o.subtotal);return Object.keys(groups).length?table(['供应商','本月在手订单物料小计'],Object.entries(groups).map(([s,v])=>`<tr><td>${esc(s)}</td><td>${money(v)}</td></tr>`)):empty('暂无本月采购结构','按本月在手采购单物料金额展示，不代替含税应付金额。')})())}</div>`;
+ }
+ if(tab==='orders')html+=panel('采购跟进',orderTable(d.orders));
+ if(tab==='suppliers'){
+ html+=panel('供应商延期与问题跟进',issues.length?table(['供应商','项目 / 采购单','问题','约定发货','最新预计发货','当前进展 / 卡点','跟进人','跟进'],issues.map(o=>`<tr><td>${esc(o.supplier)}</td><td>${esc(o.project)}<small>${esc(o.number)}</small></td><td>${o.late?'发货逾期':''}${o.rejected?' 验收异常':''}</td><td>${esc(o.due||'待登记')}</td><td>${esc(o.estimated_ship||'待登记')}</td><td class="pc-note">${esc(o.note||'待补充处理进展')}</td><td>${esc(o.owner)}</td><td><button type="button" class="quiet" data-pc-order="${esc(o.id)}">查看项目</button></td></tr>`)):empty('暂无供应商延期与验收问题','按授权范围内当前采购订单统计。'));
+ const units=[...new Set(d.annual_suppliers.flatMap(s=>Object.keys(s.units)))];
+ const ranked=units.length===1?[...d.annual_suppliers].sort((a,b)=>(b.units[units[0]]||0)-(a.units[units[0]]||0)):d.annual_suppliers;
+ html+=panel('供应商采购量排名 · '+d.year+'年度',table(['排名','供应商','年度采购量（分单位）','年度采购订单数','年度确认应付金额'],ranked.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.name)}</td><td>${qty(s)}</td><td>${s.orders}</td><td>${!d.finance||s.unknown_amount?'待核实':money(s.amount)}</td></tr>`))+`<p class="pc-muted">${units.length>1?'单位不同不混加，按订单笔数排序；采购量按单位展示。':'按年度采购数量降序。'}</p>`);
+ const known=d.orders.filter(o=>o.amount!=null).sort((a,b)=>b.amount-a.amount);
+ html+=panel('订单采购金额排名 · 当前采购订单',known.length?table(['排名','采购单 / 项目','供应商','确认应付金额','阶段','跟进'],known.map((o,i)=>`<tr><td>${i+1}</td><td>${esc(o.number)}<small>${esc(o.project)}</small></td><td>${esc(o.supplier)}</td><td>${money(o.amount)}</td><td>${esc(o.stage)}</td><td><button type="button" class="quiet" data-pc-order="${esc(o.id)}">查看项目</button></td></tr>`)):empty('暂无可排名的确认金额','金额尚未确认或当前账号没有财务权限。'));
+ }
+ if(tab==='payments')html+=panel('付款与对账',`<p>未来7天付款计划：待登记付款到期日期后汇总。</p>`+table(['采购单 / 项目','供应商','确认应付','已付款','剩余应付'],d.orders.map(o=>`<tr><td>${esc(o.number)}<small>${esc(o.project)}</small></td><td>${esc(o.supplier)}</td><td>${money(o.amount)}</td><td>${money(o.paid)}</td><td>${money(o.amount==null||o.paid==null?null:Math.max(o.amount-o.paid,0))}</td></tr>`)));
+ html+=`<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details></div>`;el.innerHTML=html;
+ }
+ el.onclick=event=>{const b=event.target.closest('[data-pc-tab],[data-pc-order],[data-pc-close]');if(!b)return;if(b.dataset.pcTab){tab=b.dataset.pcTab;expanded=null}else if(b.hasAttribute('data-pc-close'))expanded=null;else{const id=b.dataset.pcOrder;expanded=tab==='orders'&&expanded===id?null:id;tab='orders'}draw()};draw();
 }

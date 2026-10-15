@@ -246,7 +246,7 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     scoped=lambda r:access.visible_project(db,user,r['project_id']) and (not project or r['project_id']==project)
     employees={r['id']:r['name'] for r in db.execute('SELECT id,name FROM employees')}
     projects={r['id']:dict(r) for r in db.execute('SELECT * FROM projects') if access.visible_project(db,user,r['id']) and (not project or r['id']==project)}
-    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None;engineering_report=None;aftersales_report=None
+    metrics=[];rows=[];groups=[];notices=[];sales=None;design_report=None;costing_report=None;engineering_report=None;aftersales_report=None;procurement_report=None
     def metric(key,label,value,unit='项',hint='截至今天'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
@@ -341,6 +341,8 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
                 if r['kind'] in ('installation','issue') and r['status'] not in ('accepted','closed'):item(r,r['title'],'现场待处理','installation' if r['kind']=='installation' else 'issues',r['description'],r['due_date'])
         else:notices=['这里只追踪已有工程单中的工厂执行去向。生产排程、完工和质检尚未接入，不显示模拟生产进度。']
     elif center=='procurement':
+        import procurement_dashboard
+        procurement_report=procurement_dashboard.report(db,user,projects,today,project)
         orders=[dict(r) for r in db.execute('SELECT p.*,x.project_id FROM purchase_orders p LEFT JOIN procurement_context x ON x.order_id=p.id WHERE p.archived_at IS NULL') if access.visible_order(db,user,r['id']) and (not project or r['project_id']==project)]
         quantities={r['order_id']:dict(r) for r in db.execute('SELECT order_id,SUM(quantity) quantity,SUM(shipped_quantity) shipped,SUM(received_quantity) received,SUM(stocked_quantity) stocked FROM order_items GROUP BY order_id')}
         metric('new_orders','本期采购订单',sum(in_day(r['order_date']) for r in orders),'份','按采购日期')
@@ -409,4 +411,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
