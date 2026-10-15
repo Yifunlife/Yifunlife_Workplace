@@ -13,7 +13,7 @@ const centerOptions=items=>items.map(id=>({id,name:id}));
 const centerMoney=(minor,currency)=>minor==null?(currency==='OTHER'?'逐笔查看':'待接入'):`${currency==='OTHER'?'其他币种':currency} ${(minor/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 function centerPages(id){
  const native=id=>session.modules.includes(id);
- const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:[],engineering:[],procurement:native('procurement')?[['procurement','采购工作台']]:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[['center-aftersales-issues','问题统计']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['technical','工程执行需求']]};
+ const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:[],engineering:[],procurement:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[['center-aftersales-issues','问题统计']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['technical','工程执行需求']]};
  
  return [['center-'+id,'中心看板'],...(pages[id]||[])];
 }
@@ -307,7 +307,7 @@ function renderProcurementBoard(el,data){
  const issues=d.orders.filter(o=>o.late||o.rejected).sort((a,b)=>Number(b.late)-Number(a.late));
  function draw(){
  el.classList.add('department-dashboard');
- let html=head('采购中心','从采购需求到供应商确认、发货和验收。',session.modules.includes('procurement')?'<button class="secondary" data-view="procurement">采购工作台</button>':'')+`<div id="pc-board"><div class="pc-tabs">${[['overview','采购驾驶舱'],['orders','采购跟进'],['suppliers','供应商'],['payments','付款与对账']].map(([id,name])=>`<button type="button" data-pc-tab="${id}" aria-pressed="${tab===id}">${name}</button>`).join('')}</div>`;
+ let html=head('采购中心','从采购需求到供应商确认、发货和验收。')+`<div id="pc-board"><div class="pc-tabs">${[['overview','采购驾驶舱'],['orders','采购跟进'],['suppliers','供应商'],['payments','付款与对账']].map(([id,name])=>`<button type="button" data-pc-tab="${id}" aria-pressed="${tab===id}">${name}</button>`).join('')}</div>`;
  if(tab==='overview'){
  html+=`<p class="pc-muted">${esc(d.today)} · 当前账号授权数据 · 金额：人民币</p><dl class="center-metrics">${[['年总采购金额',money(d.year_amount),d.year+'年度累计'],['本月采购金额',money(d.month_amount),'本月累计'],['供应商付款率',d.paid_rate==null?'待核实':d.paid_rate+'%','剩余应付 '+money(d.remaining)],['未来7天待付款','待登记','尚无结构化付款到期计划']].map(([label,value,note])=>`<div><dt>${label}</dt><dd>${value}</dd><p>${note}</p></div>`).join('')}</dl>`;
  html+=panel('采购流程',`<div class="pc-flow">${['总采购订单',...stages].map(s=>`<button type="button" data-pc-tab="orders">${s}<strong>${s==='总采购订单'?d.orders.length:['待报价','待下单'].includes(s)?'待接入':d.orders.filter(o=>o.stage===s).length}</strong></button>`).join('')}</div>`);
