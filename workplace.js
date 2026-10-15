@@ -6,7 +6,7 @@ const modules={quote:{name:'报价中心',port:8991},procurement:{name:'采购�
 const labels={connections:'连接资料',dashboard:'CEO 总看板',home:'关联业务档案',customers:'客户档案','quote-entry':'选择报价业务',orders:'订单与变更',inventory:'共用库存',releases:'特殊放行',finance:'财务中心',masters:'共用档案',employees:'人员与权限',audit:'操作记录',migration:'数据核对',account:'个人账号',technical:'工程下单'};
 const statuses={pending:'待处理',approved:'已批准',rejected:'已拒绝',draft:'待销售确认',confirmed:'待采购执行',applied:'已执行',active:'使用中',disabled:'已停用',ordered:'已下采购单',original:'原订单',addition:'增项单'};
 Object.assign(labels,OPS_LABELS);
-Object.assign(labels,Object.fromEntries(Object.entries(CENTER_NAMES).map(([id,name])=>['center-'+id,name+'看板'])),{'center-marketing-spend':'平台投入登记','center-marketing-leads':'来源线索','center-design-records':'设计任务与交接'});
+Object.assign(labels,Object.fromEntries(Object.entries(CENTER_NAMES).map(([id,name])=>['center-'+id,name+'看板'])),{'center-marketing-spend':'平台投入登记','center-marketing-leads':'来源线索','center-design-records':'设计任务与交接','center-aftersales-issues':'售后问题统计'});
 let session=null,state=null,view='tasks',project='',dialogSave=null,lastFocus=null,renderGeneration=0,moduleLink='',nextDialog=null;
 const can=(...r)=>r.includes(session?.user.role);
 const amount=(minor,currency='CNY')=>minor==null?'待确认':`${currency==='USD'?'US$':'¥'} ${(minor/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -102,6 +102,7 @@ async function render(){workplacePageUrl();const current=++renderGeneration;cons
   el.hidden=true;frame.style.display='block';return;
  }
  el.style.padding='';
+ if(view==='center-aftersales-issues'){await renderAftersalesAnalysis(el,current);return;}
  if(view==='center-marketing-spend'||view==='center-design-records'){await renderCenterRecords(el,view,current);return;}
  if(view==='center-marketing-leads'){await renderOperations(el,'leads',current);return;}
  if(view.startsWith('center-')&&CENTER_NAMES[view.slice(7)]){await renderCenter(el,view.slice(7),current);return;}

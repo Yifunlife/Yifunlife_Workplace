@@ -366,8 +366,9 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
             if r['unavailable']>0 or r['reserved']>0:item(r,r['sku']+' · '+r['name'],'有待检库存' if r['unavailable'] else '项目已占用','inventory','在库 '+str(r['on_hand'])+' / 占用 '+str(r['reserved'])+' / 可用 '+str(r['available'])+' '+r['unit'])
         notices=['库存来自共用账本。选定项目时显示该项目相关产品的全仓余额，不代表该项目独占数量。']
     elif center=='aftersales':
-        import aftersales_dashboard
+        import aftersales_dashboard, aftersales_analysis
         aftersales_report=aftersales_dashboard.report(db,user,projects,today)
+        aftersales_report['analysis']=aftersales_analysis.report(db,user,projects,today)
         tickets=[dict(r) for r in db.execute('SELECT * FROM service_tickets') if scoped(r)]
         open_count=closed=overdue=0
         for r in tickets:
