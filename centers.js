@@ -189,7 +189,7 @@ function renderDesignBoard(el,data){
 }
 
 
-function renderEngineeringBoard(el,data){
+function renderEngineeringBoard(el,data,options={}){
  const report=data.engineering,stages=['未排期','下单中','生产中','待安装','安装中','售后','未来订单'],depts=['下单','木工部','软包部','油漆部','铁车间','采购部','安装'];
  let selected='总订单';
  el.innerHTML='<div class="department-dashboard engineering-dashboard"></div>';const board=el.firstElementChild;
@@ -202,6 +202,7 @@ function renderEngineeringBoard(el,data){
   board.innerHTML=head('工程部看板','订单排期 · 工程下单 · 生产安装 · 售后跟进')+`<dl class="center-metrics engineering-metrics">${metricNames.map(label=>`<div><button type="button" data-eng-filter="${label}" aria-pressed="${selected===label}"><dt>${label}</dt><dd>${subset(label).length}</dd></button></div>`).join('')}</dl>`+
    panel(selected+' · '+rows.length,`<div class="department-table-wrap"><table><thead><tr>${['项目名称','商务负责人','设计负责人','核算负责人','工程负责人','下单进度','木工部','软包部','油漆部','铁车间','采购部','安装进度','问题反馈'].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.number)}${r.shared_test?' · 测试数据':''}</small><small>交货期：${esc(r.delivery_date||'待登记')}</small></td><td>${esc(r.sales_owner)}</td><td>${esc(r.design_owner)}</td><td>${esc(r.costing_owner)}</td><td>${esc(r.engineering_owner)}</td>${depts.map(d=>`<td>${pct(r.progress[d])}</td>`).join('')}<td class="engineering-feedback">${esc(r.issue||'暂无反馈')}${report.can_edit?`<small><button type="button" class="quiet" data-eng-edit="${esc(r.id)}">反馈 / 更新进度</button></small>`:''}</td></tr>`).join('')||'<tr><td colspan="13">当前没有此类订单</td></tr>'}</tbody></table></div>`)+
    panel('交货重点提醒 · '+report.alerts.length+' 单',`<p class="engineering-alert-note">统计基准：${esc(report.today)} · 交货期10天以内及逾期未交付订单</p>${report.alerts.map(r=>`<div class="engineering-alert"><div><strong>${esc(r.name)}</strong><small>${esc(r.number)} · 交货期：${esc(r.delivery_date)}</small></div><span class="tag pending">${r.days<0?'已逾期 '+(-r.days)+' 天':r.days===0?'今天交货':'距交货 '+r.days+' 天'}</span><div>卡点部门：${esc(r.blocker_dept||'待登记')}<small>${esc(r.blocker_reason||'尚未登记卡点原因')}</small></div>${report.can_edit?`<button type="button" class="quiet" data-eng-edit="${esc(r.id)}">跟进</button>`:''}</div>`).join('')||'<p class="engineering-alert-note">暂无交货期10天以内的未交付订单</p>'}`)+`<details class="center-definitions"><summary>数据来源与统计说明</summary>${report.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details>`;
+  if(options.embedded){board.querySelector(':scope > .page-head')?.remove();board.querySelectorAll(':scope > .panel')[1]?.remove();board.querySelector(':scope > .center-definitions')?.remove();}
  }
  board.onclick=e=>{const filter=e.target.closest('[data-eng-filter]');if(filter){selected=filter.dataset.engFilter;draw();return;}const edit=e.target.closest('[data-eng-edit]');if(!edit)return;const r=report.orders.find(r=>r.id===edit.dataset.engEdit);if(!r)return;
  const opts=(items,value)=>items.map(x=>`<option value="${esc(x)}" ${value===x?'selected':''}>${esc(x)}</option>`).join('');
@@ -342,10 +343,11 @@ function renderProductionBoard(el,report,key='all'){
  const notice=`<details class="center-definitions"><summary>数据来源与统计说明</summary>${report.notices.map(n=>'<p>'+esc(n)+'</p>').join('')}</details>`;
  if(!workshop){
   const late=all.filter(r=>r.days!==null&&r.days<0),blocked=all.filter(r=>r.blocker_dept&&r.blocker_reason);
-  board.innerHTML=head('生产中心总看板','木工 · 软包 · 油漆 · 铁车间，统一查看订单、登记进度与卡点。')+
+  board.innerHTML=head('生产中心总看板','木工 · 软包 · 油漆 · 铁车间，统一查看订单、登记进度与卡点。')+'<div class="production-lifecycle"></div>'+
    `<dl class="center-metrics"><div><dt>生产范围订单</dt><dd>${all.length}<small>单</small></dd></div><div><dt>工程阶段生产中</dt><dd>${all.filter(r=>r.stage==='生产中').length}<small>单</small></dd></div><div><dt>已登记卡点</dt><dd>${blocked.length}<small>单</small></dd></div><div><dt>交货期已逾期</dt><dd>${late.length}<small>单</small></dd></div></dl>`+
    panel('各车间登记情况',`<div class="production-workshops">${labels.map(w=>`<button type="button" class="production-workshop" data-view="production-${w.id}"><strong>${esc(w.name)}</strong><span>进行中 <b>${w.active}</b> 单 · 未开始 ${w.not_started} 单</span><span>进度100% ${w.complete} 单 · 卡点 ${w.blocked} 单</span><small>另有 ${w.unknown} 单进度待登记</small></button>`).join('')}</div>`)+
    panel('生产订单与各车间进度 · '+all.length+' 单',`<div class="department-table-wrap"><table><thead><tr>${['订单 / 项目','交货期','工程负责人',...labels.map(w=>w.name),'卡点 / 问题'].map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>${all.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.number)}${r.shared_test?' · 测试数据':''}</small><small>${esc(r.stage)}</small></td><td>${esc(r.delivery_date||'待登记')}<small>${esc(dateText(r))}</small></td><td>${esc(r.engineering_owner)}</td>${labels.map(w=>'<td>'+pct(r.progress[w.department],w.name)+'</td>').join('')}<td class="production-issue">${esc(r.blocker_dept||'未登记卡点')}<small>${esc(r.blocker_reason||r.issue||'暂无问题反馈')}</small></td></tr>`).join('')||'<tr><td colspan="8">暂无生产范围订单；已登记生产中或明确分派工厂后在此汇总。</td></tr>'}</tbody></table></div>`)+notice;
+  if(report.engineering)renderEngineeringBoard(board.querySelector('.production-lifecycle'),{engineering:{...report.engineering,can_edit:report.engineering.can_edit&&!session.read_only}},{embedded:true});
  }else{
   board.innerHTML=head(workshop.name+'看板','进度读取工程登记；未登记不计为未开始，100%进度不代替质检确认。')+
    `<dl class="center-metrics production-status">${[['已登记车间进度',workshop.registered],['进行中',workshop.active],['未开始',workshop.not_started],['进度100%',workshop.complete],['车间卡点',workshop.blocked],['进度待登记',workshop.unknown]].map(([label,n])=>'<div><dt>'+label+'</dt><dd>'+n+'<small>单</small></dd></div>').join('')}</dl>`+

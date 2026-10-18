@@ -29,8 +29,8 @@ def report(db,user,projects,today):
             'not_started':sum(r['workshop_progress']==0 for r in entries),
             'active':sum(r['workshop_progress'] is not None and 0<r['workshop_progress']<100 for r in entries),
             'complete':sum(r['workshop_progress']==100 for r in entries),'blocked':sum(r['workshop_blocked'] for r in entries)})
-    return {'today':today,'orders':rows,'workshops':workshops,
-        'notices':['汇总授权范围内工程阶段为生产中的正式订单，以及最新工程单中明确分派工厂的订单；按正式订单编号去重，排除未来订单与已转售后订单。',
+    return {'engineering':source,'today':today,'orders':rows,'workshops':workshops,
+        'notices':['全周期订单统计与部门进度表共用工程中心数据：总订单按正式订单去重，未来订单单独统计；下方车间汇总仅统计生产执行范围。','汇总授权范围内工程阶段为生产中的正式订单，以及最新工程单中明确分派工厂的订单；按正式订单编号去重，排除未来订单与已转售后订单。',
         '木工、软包、油漆、铁车间进度来自工程中心已登记数据；未登记不等于未开始，也不自动认定该订单一定涉及该车间。',
         '进度100%只代表已登记的工程进度，不替代车间完工、质检或出库确认；各车间订单数不能直接相加作为总订单数。',
         '车间卡点按明确登记的卡点部门识别；负责人显示工程负责人，车间独立派工、排产与质检后续再接通。']}
