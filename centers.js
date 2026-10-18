@@ -13,16 +13,16 @@ const centerOptions=items=>items.map(id=>({id,name:id}));
 const centerMoney=(minor,currency)=>minor==null?(currency==='OTHER'?'逐笔查看':'待接入'):`${currency==='OTHER'?'其他币种':currency} ${(minor/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 function centerPages(id){
  const native=id=>session.modules.includes(id);
- const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:[],engineering:[],procurement:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[['center-aftersales-issues','问题统计']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['technical','工程执行需求']]};
+ const pages={marketing:[['center-marketing-spend','投入登记'],['center-marketing-leads','来源线索']],crm:[['connections','销售工作台资料'],['leads','线索与跟进'],['opportunities','商机管理']],design:[],projects:[['orders','订单与变更'],['home','关联业务档案']],quote:[],engineering:[],procurement:[],stock:[['inventory','共用库存'],...(can('admin','ceo','warehouse','purchasing','engineering','aftersales')?[['warehouse','库存作业'],['counts','盘点管理'],['locations','仓库与库位']]:[])],aftersales:[['center-aftersales-issues','问题统计']],finance:[['finance','收款与结算'],...(can('admin','ceo','finance')?[['costs','项目成本'],['expenses','费用登记']]:[])],factory:[['production-wood','木工车间'],['production-upholstery','软包车间'],['production-paint','油漆车间'],['production-metal','铁车间']]};
  
- return [['center-'+id,'中心看板'],...(pages[id]||[])];
+ return [['center-'+id,id==='factory'?'生产中心总看板':'中心看板'],...(pages[id]||[])];
 }
 function centerPeriod(id){const today=opsDate();return centerFilters[id]||{from:today.slice(0,8)+'01',to:today,currency:'CNY'};}
 async function renderCenter(el,id,generation){
  centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
  try{
   const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='factory'&&data.production){renderProductionBoard(el,data.production);return;}if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -327,4 +327,28 @@ function renderProcurementBoard(el,data){
  html+=`<details class="center-definitions"><summary>数据来源与统计说明</summary>${d.notices.map(n=>`<p>${esc(n)}</p>`).join('')}</details></div>`;el.innerHTML=html;
  }
  el.onclick=event=>{const b=event.target.closest('[data-pc-tab],[data-pc-order],[data-pc-close]');if(!b)return;if(b.dataset.pcTab){tab=b.dataset.pcTab;expanded=null}else if(b.hasAttribute('data-pc-close'))expanded=null;else{const id=b.dataset.pcOrder;expanded=tab==='orders'&&expanded===id?null:id;tab='orders'}draw()};draw();
+}
+async function renderProductionWorkshop(el,key,generation){
+ pageLoading(el,'生产中心','正在读取车间登记进度。');
+ try{const data=await api('/api/centers/dashboard?'+new URLSearchParams({center:'factory',...(project?{project}:{})}));if(generation!==renderGeneration)return;renderProductionBoard(el,data.production,key);}
+ catch(error){if(generation===renderGeneration)el.innerHTML=head('车间看板','读取失败，请刷新重试。')+'<p class="error">'+esc(error.message)+'</p>';}
+}
+function renderProductionBoard(el,report,key='all'){
+ const workshop=report.workshops.find(w=>w.id===key),all=report.orders,rows=workshop?workshop.orders:all;
+ const labels=report.workshops;
+ el.innerHTML='<div class="department-dashboard production-dashboard"></div>';const board=el.firstElementChild;
+ const dateText=r=>r.days==null?'交货期待登记':r.days<0?'已逾期 '+(-r.days)+' 天':r.days===0?'今天交货':'距交货 '+r.days+' 天';
+ const pct=(v,label)=>v==null?'<span class="muted">待登记</span>':`<div class="production-progress"><span>${v}%</span><progress max="100" value="${v}" aria-label="${esc(label)}进度 ${v}%"></progress></div>`;
+ const notice=`<details class="center-definitions"><summary>数据来源与统计说明</summary>${report.notices.map(n=>'<p>'+esc(n)+'</p>').join('')}</details>`;
+ if(!workshop){
+  const late=all.filter(r=>r.days!==null&&r.days<0),blocked=all.filter(r=>r.blocker_dept&&r.blocker_reason);
+  board.innerHTML=head('生产中心总看板','木工 · 软包 · 油漆 · 铁车间，统一查看订单、登记进度与卡点。')+
+   `<dl class="center-metrics"><div><dt>生产范围订单</dt><dd>${all.length}<small>单</small></dd></div><div><dt>工程阶段生产中</dt><dd>${all.filter(r=>r.stage==='生产中').length}<small>单</small></dd></div><div><dt>已登记卡点</dt><dd>${blocked.length}<small>单</small></dd></div><div><dt>交货期已逾期</dt><dd>${late.length}<small>单</small></dd></div></dl>`+
+   panel('各车间登记情况',`<div class="production-workshops">${labels.map(w=>`<button type="button" class="production-workshop" data-view="production-${w.id}"><strong>${esc(w.name)}</strong><span>进行中 <b>${w.active}</b> 单 · 未开始 ${w.not_started} 单</span><span>进度100% ${w.complete} 单 · 卡点 ${w.blocked} 单</span><small>另有 ${w.unknown} 单进度待登记</small></button>`).join('')}</div>`)+
+   panel('生产订单与各车间进度 · '+all.length+' 单',`<div class="department-table-wrap"><table><thead><tr>${['订单 / 项目','交货期','工程负责人',...labels.map(w=>w.name),'卡点 / 问题'].map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>${all.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.number)}${r.shared_test?' · 测试数据':''}</small><small>${esc(r.stage)}</small></td><td>${esc(r.delivery_date||'待登记')}<small>${esc(dateText(r))}</small></td><td>${esc(r.engineering_owner)}</td>${labels.map(w=>'<td>'+pct(r.progress[w.department],w.name)+'</td>').join('')}<td class="production-issue">${esc(r.blocker_dept||'未登记卡点')}<small>${esc(r.blocker_reason||r.issue||'暂无问题反馈')}</small></td></tr>`).join('')||'<tr><td colspan="8">暂无生产范围订单；已登记生产中或明确分派工厂后在此汇总。</td></tr>'}</tbody></table></div>`)+notice;
+ }else{
+  board.innerHTML=head(workshop.name+'看板','进度读取工程登记；未登记不计为未开始，100%进度不代替质检确认。')+
+   `<dl class="center-metrics production-status">${[['已登记车间进度',workshop.registered],['进行中',workshop.active],['未开始',workshop.not_started],['进度100%',workshop.complete],['车间卡点',workshop.blocked],['进度待登记',workshop.unknown]].map(([label,n])=>'<div><dt>'+label+'</dt><dd>'+n+'<small>单</small></dd></div>').join('')}</dl>`+
+   panel(workshop.name+'关联订单 · '+rows.length+' 单',`<div class="department-table-wrap"><table><thead><tr>${['订单 / 项目','交货期','工程负责人','车间登记进度','登记状态','卡点 / 问题'].map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.number)}${r.shared_test?' · 测试数据':''}</small></td><td>${esc(r.delivery_date||'待登记')}<small>${esc(dateText(r))}</small></td><td>${esc(r.engineering_owner)}</td><td>${pct(r.workshop_progress,workshop.name)}</td><td>${esc(r.workshop_state)}</td><td class="production-issue">${r.workshop_blocked?esc(r.blocker_reason):'未登记本车间卡点'}<small>${esc(r.issue||'暂无反馈')}</small></td></tr>`).join('')||'<tr><td colspan="6">暂无关联生产订单</td></tr>'}</tbody></table></div>`)+notice;
+ }
 }
