@@ -309,7 +309,7 @@ html[data-workplace-center="workplace"] #content>.panel{margin-bottom:16px}
 @media(max-width:760px){.retained-module-frame{height:calc(100dvh - 150px);min-height:420px}}
 
 /* Shared work entry, also outside retained native module frames. */
-.work-reminders{margin:18px 24px 0;background:var(--wp-surface);color:var(--wp-text);border:1px solid var(--wp-line);border-top:3px solid var(--wp-gold);border-radius:9px;overflow:hidden;min-width:0}
+.work-reminders{flex-shrink:0;margin:18px 24px 0;background:var(--wp-surface);color:var(--wp-text);border:1px solid var(--wp-line);border-top:3px solid var(--wp-gold);border-radius:9px;overflow:hidden;min-width:0}
 .work-reminders-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:15px 18px;background:var(--wp-hover)}
 .work-reminders-head h2{margin:0;font-size:16px}.work-reminders-head h2 span{font-size:12px;font-weight:400;color:var(--wp-muted);margin-left:8px}
 .work-reminders-head p{margin:5px 0 0;font-size:13px;color:var(--wp-muted)}.work-reminders-head p strong{color:var(--wp-text)}
