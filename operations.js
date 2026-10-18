@@ -17,7 +17,9 @@ const opsOption=(id,name)=>({id,name});
 function workplaceCenters(){
  if(can('supplier'))return [{id:'procurement',name:'采购中心',pages:[['procurement','采购工作台']]}];
  const available=session.centers||[];
- return [...new Set(available.map(id=>id==='projects'?'crm':id).filter(id=>id!=='factory'))].map(id=>{
+ const ids=[...new Set(available.map(id=>id==='projects'?'crm':id))];
+ if(ids.includes('factory')){ids.splice(ids.indexOf('factory'),1);const before=ids.indexOf('procurement');const stock=ids.indexOf('stock');ids.splice(before>=0?before+1:stock>=0?stock:ids.length,0,'factory');}
+ return ids.map(id=>{
   if(id==='crm'){
    const groups=[...(available.includes('crm')?[{name:'客户与商机',pages:[['center-crm','销售看板'],['customers','客户档案'],...centerPages('crm').slice(1)]}]:[]),...(available.includes('projects')?[{name:'订单与交付',pages:[['center-projects','交付进度'],['orders','订单与变更'],['home','关联业务档案']]}]:[])];
    return {id,name:'销售中心',groups,pages:groups.flatMap(group=>group.pages)};
