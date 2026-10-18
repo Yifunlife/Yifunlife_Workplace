@@ -9,6 +9,7 @@ import database,core
 import project_access as access
 import ceo_dashboard
 import operations
+import work_reminders
 import centers
 import connections
 import account_reporting
@@ -283,6 +284,11 @@ class Handler(BaseHTTPRequestHandler):
                 employees=[public(dict(r)) for r in db.execute('SELECT * FROM employees ORDER BY created_at')]
                 for employee in employees:employee['centers']=[r[0] for r in db.execute('SELECT center FROM center_members WHERE employee_id=?',(employee['id'],))]
             return self.respond(200,{'items':employees})
+        if path=='/api/work-reminders':
+            query=parse_qs(urlparse(self.path).query)
+            with database.connect() as db:
+                result=work_reminders.report(db,user,query.get('center',[None])[0],query.get('project',[None])[0])
+            return self.respond(200,result)
         if path in ('/api/centers/dashboard','/api/centers/records'):
             query=parse_qs(urlparse(self.path).query);q=lambda key,default=None:query.get(key,[default])[0]
             with database.connect() as db:

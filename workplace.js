@@ -37,7 +37,7 @@ async function api(path,p){
   const r=await fetch(path,{method:write?'POST':'GET',headers:{'Content-Type':'application/json',...(session?.csrf?{'X-Yifun-Token':session.csrf}:{})},body:write?JSON.stringify(p):undefined});
   const result=await r.json();
   if(!r.ok){if(r.status===401){clearPageCache();await start();}throw new Error(result.error||'操作失败，请重试');}
-  if(write)clearPageCache();return result;
+  if(write){clearPageCache();queueMicrotask(()=>refreshWorkReminders());broadcastWorkChange();}return result;
  };
  const cacheable=!write&&/^\/api\/(centers\/(dashboard|records)|ops\/view|dashboard(?:\?|$)|view\/overview|connections(?:\?|$))/.test(path);
  if(!cacheable)return load();
@@ -53,8 +53,8 @@ async function start(){
  project=session.project_id||'';if(can('admin','ceo'))view='dashboard';if(can('supplier'))view='procurement';
  const params=new URLSearchParams(location.search),requested=params.get('view');
  if(!params.has('project')&&!params.has('salesClient')&&!can('supplier')&&session.project_id){await api('/api/context',{project_id:null});project='';}
- const allowed=new Set(['account',...workplaceCenters().flatMap(c=>c.pages.map(p=>p[0])),...(can('admin','ceo','sales','engineering')?['connections']:[]),...(can('supplier')?[]:['tasks','masters']),...(can('admin','ceo')?['dashboard','audit']:[]),...(can('admin')?['employees','migration']:[])]);
- if(requested&&allowed.has(requested))view=requested;if(can('admin','ceo')&&view==='tasks')view='dashboard';
+ const allowed=new Set(['account',...workReminderRoutes().map(r=>r[0]),...workplaceCenters().flatMap(c=>c.pages.map(p=>p[0])),...(can('admin','ceo','sales','engineering')?['connections']:[]),...(can('supplier')?[]:['tasks','masters']),...(can('admin','ceo')?['dashboard','audit']:[]),...(can('admin')?['employees','migration']:[])]);
+ if(requested&&allowed.has(requested))view=requested;if(can('admin','ceo')&&view==='tasks'&&!requested)view='dashboard';
  if(params.has('salesClient')){const linked=await api('/api/connections/sales-project?id='+encodeURIComponent(params.get('salesClient')));if(linked.project_id)params.set('project',linked.project_id);view='connections';}
  if(params.has('project')&&view!=='dashboard'){
   try{await api('/api/context',{project_id:params.get('project')||null});project=params.get('project')||'';}
@@ -81,12 +81,12 @@ function workplacePageUrl(){
 }
 function login(){const setup=session.needsSetup;$('#app').innerHTML=`<main class="login"><section class="login-brand"><img src="/workplace-logo.png" width="1431" height="340" alt="YIFUN LIFE 亦玩集团"><div><h1>同一个项目，<br>每一步都有记录。</h1><p>报价 · 采购 · 仓库 · 售后</p></div><small>Workplace · 完整页面版</small></section><form class="login-form" id="login-form"><h2>${setup?(session.cloud?'设置我的账号':'建立管理员账号'):'登录工作平台'}</h2><p>${session.cloud?(setup?'设置你自己的姓名和密码。':'使用你设置的账号密码登录。'):(setup?'首次使用先建立你的管理账号，再为各岗位创建员工账号。':'使用统一员工账号进入所属工作中心。')}</p>${setup?input('name',session.cloud?'姓名':'管理员姓名'):''}${input('email','工作邮箱','email',session.verified_email||'',true,'autocomplete="username"'+(session.verified_email?' readonly':''))}${input('password','密码','password','',true,`minlength="10" maxlength="256" autocomplete="${setup?'new-password':'current-password'}"`)}<p class="error" id="login-error" role="alert"></p><button>${setup?'建立账号并进入':'登录'}</button>${session.cloud?'<p><a href="/password-recovery">找回账号／密码</a></p>':''}<small>${session.cloud?'共享测试站点 · 模拟数据':'原有三个系统继续独立运行。此版本使用自己的数据。'}</small></form></main>`;$('#login-form').addEventListener('submit',async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;try{await api(`/api/auth/${setup?'setup':'login'}`,Object.fromEntries(new FormData(e.target)));await start();}catch(err){$('#login-error').textContent=err.message;}finally{b.disabled=false;}});}
 function shell(){
- const nav=can('supplier')?[]:can('admin','ceo')?[['dashboard','CEO 总看板']]:[['tasks','我的待办']];
- $('#app').innerHTML=`<div class="shell"><aside class="rail"><div class="brand"><img src="/workplace-logo.png" width="1431" height="340" alt="YIFUN LIFE"><span>WORKPLACE</span></div><nav aria-label="工作平台导航">${nav.map(([id,n])=>`<button data-view="${id}"${id==='tasks'?' data-center="tasks"':''}>${n}</button>`).join('')}<span class="nav-label">业务中心</span>${workplaceCenters().map(c=>`<button data-view="${c.pages[0][0]}" data-center="${c.id}">${c.name}</button>`).join('')}<span class="nav-label">管理</span>${!can('supplier')?'<button data-view="masters">共用档案</button>':''}${can('admin','ceo','sales','engineering')?'<button data-view="connections">连接资料</button>':''}${can('admin')?'<button data-view="employees">人员与权限</button><button data-view="migration">数据导入与核对</button>':''}${can('admin','ceo')?'<button data-view="audit">操作记录</button>':''}<button data-view="account">个人账号</button></nav><div class="account"><strong>${esc(session.user.name)}</strong><p>${session.read_only?'只读查看':roles[session.user.role]} · 完整页面版</p><span>${session.cloud?'共享测试站点 · 模拟数据':'本机管理员 · 免登录'}</span></div></aside><div class="workspace"><header class="center-topbar"><button class="quiet" id="center-back" data-view="${can('supplier')?'account':can('admin','ceo')?'dashboard':'tasks'}">${can('supplier')?'返回工作台':can('admin','ceo')?'返回 CEO 总看板':'返回我的待办'}</button><strong id="center-title"></strong>${!can("supplier")?`<label>切换中心<select id="center-switch">${workplaceCenters().map(c=>`<option value="${c.pages[0][0]}">${c.name}</option>`).join("")}</select></label>`:""}<span id="center-project"></span></header><header class="topbar"><strong id="sales-center-label" hidden>销售看板</strong><span class="local">财务暂未开放</span>${button('refresh','刷新','','secondary')}</header><div id="center-sections" class="center-sections" hidden></div><main id="content" tabindex="-1"></main></div></div>`;
+ const nav=can('supplier')?[]:can('admin','ceo')?[['dashboard','CEO 总看板'],['tasks','我的待办']]:[['tasks','我的待办']];
+ $('#app').innerHTML=`<div class="shell"><aside class="rail"><div class="brand"><img src="/workplace-logo.png" width="1431" height="340" alt="YIFUN LIFE"><span>WORKPLACE</span></div><nav aria-label="工作平台导航">${nav.map(([id,n])=>`<button data-view="${id}"${id==='tasks'?' data-center="tasks"':''}>${n}</button>`).join('')}<span class="nav-label">业务中心</span>${workplaceCenters().map(c=>`<button data-view="${c.pages[0][0]}" data-center="${c.id}">${c.name}</button>`).join('')}<span class="nav-label">管理</span>${!can('supplier')?'<button data-view="masters">共用档案</button>':''}${can('admin','ceo','sales','engineering')?'<button data-view="connections">连接资料</button>':''}${can('admin')?'<button data-view="employees">人员与权限</button><button data-view="migration">数据导入与核对</button>':''}${can('admin','ceo')?'<button data-view="audit">操作记录</button>':''}<button data-view="account">个人账号</button></nav><div class="account"><strong>${esc(session.user.name)}</strong><p>${session.read_only?'只读查看':roles[session.user.role]} · 完整页面版</p><span>${session.cloud?'共享测试站点 · 模拟数据':'本机管理员 · 免登录'}</span></div></aside><div class="workspace"><header class="center-topbar"><button class="quiet" id="center-back" data-view="${can('supplier')?'account':can('admin','ceo')?'dashboard':'tasks'}">${can('supplier')?'返回工作台':can('admin','ceo')?'返回 CEO 总看板':'返回我的待办'}</button><strong id="center-title"></strong>${!can("supplier")?`<label>切换中心<select id="center-switch">${workplaceCenters().map(c=>`<option value="${c.pages[0][0]}">${c.name}</option>`).join("")}</select></label>`:""}<span id="center-project"></span></header><header class="topbar"><strong id="sales-center-label" hidden>销售看板</strong><span class="local">财务暂未开放</span>${button('refresh','刷新','','secondary')}</header><div id="center-sections" class="center-sections" hidden></div><section id="work-reminders" class="work-reminders" aria-label="今日工作提醒" aria-live="polite"></section><main id="content" tabindex="-1"></main></div></div>`;
 }
 async function refresh(){session=await api('/api/auth/session');if(!session.authenticated){login();return;}project=session.project_id||'';if(!can('supplier','finance'))state=await api('/api/view/overview'+(project?`?project=${encodeURIComponent(project)}`:''));else state={projects:[],products:[],baselines:[],customers:[]};await render();}
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
-async function render(){workplacePageUrl();const current=++renderGeneration;const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
+async function render(){workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
  $('#sales-center-label').hidden=section?.id!=='crm';
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));
@@ -140,6 +140,7 @@ $('#close-dialog').onclick=closeModal;$('#cancel-dialog').onclick=closeModal;
 $('#dialog-form').addEventListener('submit',async e=>{e.preventDefault();const submit=$('#submit-dialog');submit.disabled=true;$('#dialog-error').textContent='';try{await dialogSave(Object.fromEntries(new FormData(e.target)));closeModal();await refresh();if(nextDialog){const show=nextDialog;nextDialog=null;show();}else notify('已保存');}catch(err){$('#dialog-error').textContent=err.message;}finally{submit.disabled=false;}});
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-view],[data-action]');if(!b)return;if(b.tagName==='A'){if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();}try{if(b.dataset.view){moduleLink='';routeRecord='';view=b.dataset.view;await render();return;}await action(b.dataset.action,b.dataset.id);}catch(err){notify(err.message);}});
 async function action(name,id){
+ if(await reminderAction(name,id))return;
  if(await connectionAction(name,id))return;
  if(await centerAction(name,id))return;
  if(await operationsAction(name,id))return;
@@ -192,6 +193,89 @@ async function action(name,id){
  if(name==='finance-entry')return modal('登记收款或变更差额',select('baseline_id','订单',state.baselines.map(b=>({id:b.id,name:b.number})))+select('kind','款项类型',[{id:'receipt',name:'收款'},{id:'credit',name:'Credit'},{id:'surcharge',name:'补差价'}])+input('amount','金额','number','',true,'min="0.01" step="0.01"')+input('reference','凭证号')+input('record_date','记录日期','date')+select('change_id','关联变更（Credit／补差价必选）',state.changes.map(c=>({id:c.id,name:c.original_name+' · '+c.reason})),'',false)+textarea('note','款项说明'),p=>act('finance-entry',{...p,currency:state.baselines.find(b=>b.id===p.baseline_id).currency}));
  if(name==='finance-reverse'){const e=state.finance.flatMap(b=>b.entries).find(e=>e.id===id);return modal('追加财务冲销',`<p class="full">冲销 ${esc(e.reference)}：${amount(e.amount_minor,e.currency)}。原记录继续保留。</p>`+input('reference','冲销凭证号')+input('record_date','记录日期','date')+textarea('note','冲销原因'),p=>act('finance-entry',{...p,baseline_id:e.baseline_id,currency:e.currency,kind:e.kind,reversal_of:id}));}
 }
+// Shared reminder surface lives outside #content so retained native frames keep it visible.
+let reminderRequest=0,reminderData=null,reminderScope='',reminderFilter='all';
+let workChannel=null;
+try{workChannel=new BroadcastChannel('yifun-work-changes');workChannel.onmessage=()=>refreshWorkReminders();}catch{}
+function broadcastWorkChange(){try{workChannel?.postMessage({changed:true});}catch{}}
+function workReminderRoutes(){
+ const centers=session?.centers||[],native=session?.modules||[];
+ return [
+  ...(centers.includes('design')?[['center-design-records','design','设计任务与交接']]:[]),
+  ...(centers.includes('engineering')?[['technical','engineering','工程下单'],['installation','engineering','安装任务与验收'],['issues','engineering','现场问题']]:[]),
+  ...(native.includes('quote')?[['quote','quote','报价工作台'],['quote-entry','quote','选择报价业务']]:[]),
+  ...(native.includes('procurement')?[['procurement','procurement','采购工作台']]:[]),
+  ...(native.includes('aftersales')?[['aftersales','aftersales','售后工作台']]:[]),
+  ...(!can('supplier','finance')?[['releases','tasks','特殊放行']]:[])
+ ];
+}
+function workReminderSection(page){
+ const route=workReminderRoutes().find(r=>r[0]===page);if(!route)return;
+ const center=workplaceCenters().find(c=>c.id===route[1]);
+ return center?{...center,pages:[...center.pages,[page,route[2]]]}:undefined;
+}
+function reminderContext(){
+ const section=sectionForView(view);
+ return {center:section?.id==='tasks'?null:section?.id||null,project:project||null};
+}
+async function refreshWorkReminders(){
+ const el=$('#work-reminders');if(!el||!session?.authenticated)return;
+ const request=++reminderRequest,user=session.user.id,context=reminderContext();
+ const key=JSON.stringify([user,context.center,context.project]);
+ if(key!==reminderScope){reminderScope=key;reminderFilter='all';reminderData=null;el.innerHTML='<div class="work-reminders-loading" role="status">正在读取今日工作提醒…</div>';}
+ const query=new URLSearchParams();if(context.center)query.set('center',context.center);if(context.project)query.set('project',context.project);
+ try{
+  // Always read fresh data; personal reminders must never use the page cache.
+  const response=await fetch('/api/work-reminders?'+query,{headers:{Accept:'application/json'},cache:'no-store'});
+  if(request!==reminderRequest||!el.isConnected||session?.user?.id!==user)return;
+  if(response.status===401){reminderData=null;el.innerHTML='<div class="work-reminders-loading">登录已过期，请重新登录后查看待办。</div>';return;}
+  const data=await response.json();if(request!==reminderRequest||!el.isConnected||session?.user?.id!==user)return;if(!response.ok)throw Error(data.error||'暂时无法读取');
+  reminderData=data;drawWorkReminders();
+ }catch(error){
+  if(request!==reminderRequest||!el.isConnected)return;
+  // Never present cached counts as a successful empty result.
+  reminderData=null;el.innerHTML=`<div class="work-reminders-loading">今日工作提醒暂时无法更新：${esc(error.message)} ${button('work-reminder-refresh','重试','','secondary')}</div>`;
+ }
+}
+function drawWorkReminders(){
+ const el=$('#work-reminders'),data=reminderData;if(!el||!data)return;
+ const context=reminderContext(),n=data.counts;
+ const label=context.center?CENTER_NAMES[context.center]||'本页面':'全部中心';
+ const due=r=>r.urgency==='overdue'?`已逾期 ${Math.abs(r.days)} 天`:r.urgency==='today'?'今天到期':r.due_date||'待处理';
+ const row=r=>`<li><div><strong>${esc(r.title)}</strong><small>${esc([r.project_name,OPS_STATUS[r.status]||r.status,r.mine?'分配给你':r.owner+'负责'].filter(Boolean).join(' · '))}</small><span class="work-reminder-deadline ${r.urgency==='overdue'?'is-overdue':''}">${esc(due(r))}${r.blocked?' · 有阻碍':''}</span></div>${button('work-reminder-open','查看处理',r.id,'secondary')}</li>`;
+ const mine=data.items.filter(r=>reminderFilter==='all'||r.urgency===reminderFilter);
+ const list=(rows,emptyText)=>rows.length?`<ul class="work-reminder-list">${rows.slice(0,3).map(row).join('')}</ul>${rows.length>3?`<details class="work-reminder-more"><summary>展开其余 ${rows.length-3} 件</summary><ul class="work-reminder-list">${rows.slice(3).map(row).join('')}</ul></details>`:''}`:`<p class="work-reminder-empty">${emptyText}</p>`;
+ el.innerHTML=`<div class="work-reminders-head"><div><h2>今日工作提醒 <span>${esc(label)}${context.project?' · 当前项目':''}</span></h2><p>你有 <strong>${n.total}</strong> 件待办 · <span class="${n.overdue?'is-overdue':''}">${n.overdue} 件逾期</span> · ${n.today} 件今天到期${data.manager?' · '+n.attention+' 件重点关注':''}</p></div><div class="work-reminders-actions">${button('work-reminder-all','我的全部待办','','secondary')}${button('work-reminder-refresh','刷新','','quiet')}</div></div><div class="work-reminders-columns"><section><div class="work-reminders-label"><h3>我的待办</h3><div class="work-reminders-filters" aria-label="待办优先级">${[['all','全部'],['overdue','逾期'],['today','今日']].map(([id,label])=>`<button type="button" data-action="work-reminder-filter" data-id="${id}" aria-pressed="${reminderFilter===id}">${label}</button>`).join('')}</div></div>${list(mine,'当前范围没有'+(reminderFilter==='overdue'?'逾期':reminderFilter==='today'?'今日到期':'分配给你的')+'事项')}</section><section><div class="work-reminders-label"><h3>${data.manager?'集团重点提醒':'本中心协同提醒'}</h3><span>${data.attention.length} 件</span></div>${list(data.attention,data.manager?'当前范围暂无已记录的重点异常':context.center?'当前中心暂无需协同的异常事项':'进入各业务中心查看协同事项')}</section></div><p class="work-reminders-foot">${esc(data.today)} · 按账号与项目权限汇总 · 处理结果自动同步${can('supplier')?'':' · 姓名记录待核对账号归属'}</p>`;
+}
+async function reminderAction(name,id){
+ if(!name.startsWith('work-reminder-'))return false;
+ if(name==='work-reminder-refresh'){await refreshWorkReminders();return true;}
+ if(name==='work-reminder-filter'){reminderFilter=id;drawWorkReminders();return true;}
+ if(name==='work-reminder-all'){
+  if(can('supplier')){view='procurement';await render();return true;}
+  view='tasks';moduleLink='';routeRecord='';await chooseProject('');return true;
+ }
+ if(name==='work-reminder-open'){
+  const row=[...(reminderData?.items||[]),...(reminderData?.attention||[])].find(r=>r.id===id);
+  if(!row){await refreshWorkReminders();notify('事项已更新，请重新选择');return true;}
+  const allowed=new Set(['tasks',...workReminderRoutes().map(r=>r[0]),...workplaceCenters().flatMap(c=>c.pages.map(p=>p[0]))]);
+  // Native task/install/issue views are valid record drill-down destinations.
+  if(!allowed.has(row.page)){notify('请联系对应中心负责人处理');return true;}
+  view=row.page;moduleLink=row.module_link||'';routeRecord=row.record_id;
+  // Clear a previous project's context for global leads/stock orders as well.
+  if(!can('supplier'))await chooseProject(row.project_id||'');else await render();
+  if(row.source==='release'&&can('ceo')&&state.releases.some(r=>r.id===row.record_id&&r.status==='pending'))await action('decide-release',row.record_id);
+  else if(row.source==='design'&&centerRecords?.items.some(r=>r.id===row.record_id))designForm(centerRecords.items.find(r=>r.id===row.record_id));
+  else if(['task','leads','opportunities'].includes(row.source)&&opsData?.items.some(r=>r.id===row.record_id))await operationsAction('ops-detail',row.record_id);
+  return true;
+ }
+ return true;
+}
+// Parent writes refresh immediately; native modules and other users are rechecked every 30s.
+setInterval(()=>{if(document.visibilityState==='visible'&&!$('#dialog')?.open)refreshWorkReminders();},30000);
+window.addEventListener('focus',()=>refreshWorkReminders());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshWorkReminders();});
+
 start().catch(err=>{$('#app').innerHTML=empty('暂时无法连接工作平台',location.protocol==='https:'?'请稍后刷新页面，或检查站点登录状态。':'请确认本地启动窗口仍在运行，再刷新页面。');notify(err.message);});
 
 window.addEventListener('message',async event=>{if(event.source!==document.querySelector('#content iframe')?.contentWindow||!Object.values(session?.module_urls||{}).map(url=>new URL(url).origin).includes(event.origin)||!session?.authenticated)return;try{if(event.data?.type==='workplace-logout'){await action('logout','');return;}if(event.data?.type==='workplace-navigate'&&['employees','account'].includes(event.data.view)){if(event.data.view==='employees'&&!can('admin')){notify('员工账号由管理员在总入口维护');return;}view=event.data.view;await render();}}catch(err){notify(err.message);}});

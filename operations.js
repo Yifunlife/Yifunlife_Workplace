@@ -31,7 +31,7 @@ function workplaceCenters(){
 
 function sectionForView(page){
  if(['tasks','releases'].includes(page)&&!can('supplier'))return {id:'tasks',name:'我的待办',pages:[['tasks','待办事项'],...(!can('finance')?[['releases','特殊放行']]:[])]};
- return workplaceCenters().find(center=>center.pages.some(([id])=>id===page));
+ return workplaceCenters().find(center=>center.pages.some(([id])=>id===page))||workReminderSection(page);
 }
 async function renderOperations(el,page,generation){
  const changed=opsPage!==page;opsPage=page;if(changed){opsQuery='';opsStatus='';}
