@@ -216,7 +216,7 @@ function workReminderSection(page){
 }
 function reminderContext(){
  const section=sectionForView(view);
- return {center:section?.id==='tasks'?null:section?.id||null,project:project||null};
+ return {center:section?.id==='tasks'?null:section?.id||null,project:view==='dashboard'?(dashboardProject||null):(project||null)};
 }
 async function refreshWorkReminders(){
  const el=$('#work-reminders');if(!el||!session?.authenticated)return;
