@@ -36,7 +36,16 @@ async function api(path,p){
  const load=async()=>{
   const r=await fetch(path,{method:write?'POST':'GET',headers:{'Content-Type':'application/json',...(session?.csrf?{'X-Yifun-Token':session.csrf}:{})},body:write?JSON.stringify(p):undefined});
   const result=await r.json();
-  if(!r.ok){if(r.status===401){clearPageCache();await start();}throw new Error(result.error||'操作失败，请重试');}
+  if(!r.ok){
+   // Invalid credentials belong to the current form. Background requests must
+   // never recreate that form and erase its error or the user's input.
+   if(r.status===401&&!path.startsWith('/api/auth/')&&session?.authenticated){
+    session={...session,authenticated:false,user:null};clearPageCache();
+    ++renderGeneration;++reminderRequest;nativeFrames.clear();login();
+    $('#login-error').textContent='登录已过期，请重新登录。';
+   }
+   throw new Error(result.error||'操作失败，请重试');
+  }
   if(write){clearPageCache();queueMicrotask(()=>refreshWorkReminders());broadcastWorkChange();}return result;
  };
  const cacheable=!write&&/^\/api\/(centers\/(dashboard|records)|ops\/view|dashboard(?:\?|$)|view\/overview|connections(?:\?|$))/.test(path);

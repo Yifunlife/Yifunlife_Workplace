@@ -28,6 +28,8 @@ def init():
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_links(token_hash TEXT PRIMARY KEY,email TEXT NOT NULL,expires REAL NOT NULL,created_by TEXT NOT NULL)')
         import test_accounts
         test_accounts.bootstrap(db)
+        import login_recovery_maintenance
+        login_recovery_maintenance.issue(db)
         import shared_demo
         shared_demo.seed(db)
     BRIDGE_PATH.parent.mkdir(parents=True,exist_ok=True)
