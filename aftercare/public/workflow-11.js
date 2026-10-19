@@ -1,0 +1,1 @@
+(()=>{const app=document.getElementById('yw-after-sales'),note=document.createElement('div');note.className='hosted-preview-notice';note.innerHTML='<strong>售后工作台</strong> · 员工账号由云端验证；客户工单已云端保存；各模块已清空演示记录。';app.querySelector(':scope>header').after(note);})();

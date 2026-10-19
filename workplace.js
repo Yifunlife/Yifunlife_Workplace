@@ -97,7 +97,7 @@ function shell(){
 }
 async function refresh(){session=await api('/api/auth/session');if(!session.authenticated){login();return;}project=session.project_id||'';if(!can('supplier','finance'))state=await api('/api/view/overview'+(project?`?project=${encodeURIComponent(project)}`:''));else state={projects:[],products:[],baselines:[],customers:[]};await render();}
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
-async function render(){workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
+async function render(){if(view==='aftersales')view='center-aftersales-workflow';workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
  $('#sales-center-label').hidden=section?.id!=='crm';
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));
@@ -114,6 +114,7 @@ async function render(){workplacePageUrl();const current=++renderGeneration;refr
  }
  el.style.padding='';
  if(['production-wood','production-upholstery','production-paint','production-metal'].includes(view)){await renderProductionWorkshop(el,view.slice(11),current);return;}
+ if(view==='center-aftersales-workflow'){renderAftersalesWorkflow(el);return;}
  if(view==='center-aftersales-issues'){await renderAftersalesAnalysis(el,current);return;}
  if(view==='center-marketing-spend'||view==='center-design-records'){await renderCenterRecords(el,view,current);return;}
  if(view==='center-marketing-leads'){await renderOperations(el,'leads',current);return;}

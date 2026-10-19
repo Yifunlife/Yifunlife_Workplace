@@ -1,0 +1,427 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "project",
+      "label": "项目名称",
+      "required": true,
+      "group": 0
+    },
+    {
+      "key": "customer",
+      "label": "客户名称",
+      "required": true,
+      "group": 0
+    },
+    {
+      "key": "order",
+      "label": "原订单编号",
+      "group": 0
+    },
+    {
+      "key": "country",
+      "label": "国家 / 地区",
+      "group": 0
+    },
+    {
+      "key": "contact",
+      "label": "客户联系人",
+      "group": 0
+    },
+    {
+      "key": "phone",
+      "label": "联系电话",
+      "group": 0
+    },
+    {
+      "key": "whatsapp",
+      "label": "WhatsApp / 微信",
+      "group": 0
+    },
+    {
+      "key": "address",
+      "label": "项目详细地址",
+      "group": 0
+    },
+    {
+      "key": "reported",
+      "label": "报修日期",
+      "type": "date",
+      "value": "@today",
+      "group": 0
+    },
+    {
+      "key": "product",
+      "label": "产品名称 / 编号",
+      "group": 1
+    },
+    {
+      "key": "delivered",
+      "label": "设备交付日期",
+      "type": "date",
+      "group": 1
+    },
+    {
+      "key": "issueType",
+      "label": "问题分类",
+      "options": [
+        "待分类",
+        "设备故障",
+        "安装调试",
+        "缺件补发",
+        "外观破损",
+        "其他"
+      ],
+      "group": 1
+    },
+    {
+      "key": "cause",
+      "label": "售后原因",
+      "options": [
+        "待确认",
+        "安装缺陷",
+        "设计缺陷",
+        "工程下单缺陷",
+        "生产缺陷",
+        "人为损坏"
+      ],
+      "group": 1
+    },
+    {
+      "key": "grade",
+      "label": "问题等级",
+      "options": [
+        "待评估",
+        "S",
+        "A",
+        "B",
+        "C"
+      ],
+      "group": 1
+    },
+    {
+      "key": "issue",
+      "label": "问题描述",
+      "type": "textarea",
+      "required": true,
+      "group": 1
+    },
+    {
+      "key": "feedback",
+      "label": "客户反馈 / 当前处理记录",
+      "type": "textarea",
+      "group": 1
+    },
+    {
+      "key": "evidence",
+      "label": "照片 / 视频链接",
+      "group": 1
+    },
+    {
+      "key": "owner",
+      "label": "售后负责人",
+      "required": true,
+      "group": 1
+    },
+    {
+      "key": "planned",
+      "label": "计划完成时间",
+      "type": "date",
+      "group": 2
+    },
+    {
+      "key": "stage",
+      "label": "当前阶段",
+      "options": [
+        "审核"
+      ],
+      "group": 2,
+      "default": "审核"
+    },
+    {
+      "key": "sales",
+      "label": "商务",
+      "group": 2
+    },
+    {
+      "key": "designer",
+      "label": "设计师",
+      "group": 2
+    },
+    {
+      "key": "engineer",
+      "label": "工程师",
+      "group": 2
+    },
+    {
+      "key": "installer",
+      "label": "安装人员",
+      "group": 2
+    },
+    {
+      "key": "method",
+      "label": "执行方式",
+      "options": [
+        "待确定",
+        "客户自行处理",
+        "当地工人处理",
+        "公司师傅上门"
+      ],
+      "group": 2
+    },
+    {
+      "key": "cost",
+      "label": "费用承担",
+      "options": [
+        "待确认",
+        "亦玩承担",
+        "客户承担",
+        "双方分摊"
+      ],
+      "group": 2
+    },
+    {
+      "key": "actual",
+      "label": "实际完成时间",
+      "type": "date",
+      "group": 2
+    },
+    {
+      "key": "next",
+      "label": "下一步",
+      "group": 2
+    },
+    {
+      "key": "contractType",
+      "label": "合同期限类型",
+      "options": [
+        "待核实",
+        "固定期限",
+        "无固定截止日"
+      ],
+      "group": 3
+    },
+    {
+      "key": "contractStart",
+      "label": "合同开始日期",
+      "type": "date",
+      "group": 3
+    },
+    {
+      "key": "contractEnd",
+      "label": "合同截止日期",
+      "type": "date",
+      "group": 3
+    },
+    {
+      "key": "warrantyPolicy",
+      "label": "是否约定保修",
+      "options": [
+        "待核实",
+        "有保修",
+        "无保修"
+      ],
+      "group": 3
+    },
+    {
+      "key": "warrantyBasis",
+      "label": "保修起算依据",
+      "options": [
+        "待核实",
+        "按交付日起算",
+        "按验收日起算",
+        "按合同其他约定起算"
+      ],
+      "group": 3
+    },
+    {
+      "key": "warrantyStart",
+      "label": "保修开始日期",
+      "type": "date",
+      "group": 3
+    },
+    {
+      "key": "warrantyEnd",
+      "label": "保修截止日期",
+      "type": "date",
+      "group": 3
+    }
+  ],
+  "templateExtras": [
+    {
+      "key": "warrantyMode",
+      "label": "保修资料填写方式",
+      "options": [
+        "自动读取",
+        "手工填写"
+      ]
+    },
+    {
+      "key": "manualWarrantyStart",
+      "label": "保修开始日期",
+      "type": "date"
+    },
+    {
+      "key": "manualWarrantyEnd",
+      "label": "保修截止日期",
+      "type": "date"
+    },
+    {
+      "key": "evidenceMode",
+      "label": "附件提供方式",
+      "options": [
+        "上传照片 / 视频",
+        "照片 / 视频链接"
+      ]
+    }
+  ],
+  "layout": {
+    "common": {
+      "project": [
+        2,
+        2
+      ],
+      "customer": [
+        2,
+        8
+      ],
+      "order": [
+        3,
+        2
+      ],
+      "country": [
+        3,
+        8
+      ],
+      "contact": [
+        4,
+        2
+      ],
+      "phone": [
+        4,
+        6
+      ],
+      "whatsapp": [
+        4,
+        10
+      ],
+      "address": [
+        5,
+        2
+      ],
+      "reported": [
+        6,
+        2
+      ],
+      "warrantyMode": [
+        6,
+        6
+      ],
+      "manualWarrantyEnd": [
+        6,
+        10
+      ],
+      "manualWarrantyStart": [
+        7,
+        2
+      ]
+    },
+    "detail": {
+      "product": [
+        1,
+        2
+      ],
+      "delivered": [
+        1,
+        6
+      ],
+      "issueType": [
+        1,
+        10
+      ],
+      "grade": [
+        2,
+        2
+      ],
+      "owner": [
+        2,
+        6
+      ],
+      "planned": [
+        2,
+        10
+      ],
+      "issue": [
+        3,
+        2
+      ],
+      "feedback": [
+        4,
+        2
+      ],
+      "cause": [
+        4,
+        10
+      ],
+      "evidenceMode": [
+        5,
+        2
+      ],
+      "evidence": [
+        5,
+        6
+      ],
+      "stage": [
+        6,
+        2
+      ],
+      "actual": [
+        6,
+        6
+      ],
+      "next": [
+        6,
+        10
+      ],
+      "sales": [
+        7,
+        2
+      ],
+      "designer": [
+        7,
+        6
+      ],
+      "engineer": [
+        7,
+        10
+      ],
+      "installer": [
+        8,
+        2
+      ],
+      "method": [
+        8,
+        6
+      ],
+      "cost": [
+        8,
+        10
+      ]
+    }
+  },
+  "workflow": {
+    "stages": [
+      "登记草稿",
+      "部门处理",
+      "品质检验",
+      "审核",
+      "工程下单",
+      "生产采购",
+      "发货物流",
+      "现场处理",
+      "客户验收",
+      "负责人复核",
+      "已关闭"
+    ]
+  }
+}

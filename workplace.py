@@ -12,6 +12,7 @@ import operations
 import work_reminders
 import username_login
 import centers
+import aftercare
 import connections
 import account_reporting
 import runtime_config
@@ -101,7 +102,16 @@ class Handler(BaseHTTPRequestHandler):
     def respond(self,status,body,mime='application/json; charset=utf-8'):
         raw=json.dumps(body,ensure_ascii=False).encode() if isinstance(body,(dict,list)) else body
         self.send_response(status);self.send_header('Content-Type',mime);self.send_header('Content-Length',str(len(raw)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
-        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self' "+("" if runtime_config.public_origin() else "http://127.0.0.1:8991 http://127.0.0.1:8992 http://127.0.0.1:8993")+"; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
+        if urlparse(self.path).path.startswith('/aftercare/'):
+            self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
+        elif urlparse(self.path).path.startswith('/api/aftercare/file/'):
+            self.send_header('Content-Security-Policy',"default-src 'none'; sandbox")
+        else:
+            self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self' "+("" if runtime_config.public_origin() else "http://127.0.0.1:8991 http://127.0.0.1:8992 http://127.0.0.1:8993")+"; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
+        if getattr(self,'aftercare_response_headers',None):
+            for key in ('Content-Disposition','Referrer-Policy'):
+                value=self.aftercare_response_headers.get(key.lower())
+                if value:self.send_header(key,value)
         if getattr(self,'attachment_name',None):
             from urllib.parse import quote
             self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+quote(self.attachment_name))
@@ -121,6 +131,8 @@ class Handler(BaseHTTPRequestHandler):
             path=urlparse(self.path).path;method=self.command
             if method=='GET':return self.get(path)
             if method!='POST':raise core.Problem('接口不存在',404)
+            if path.startswith('/api/aftercare/'):
+                return self.aftercare_api(path)
             p=self.read_json()
             if path=='/internal/database':
                 if not self.bridge():raise core.Problem('来源无效',403)
@@ -226,7 +238,41 @@ class Handler(BaseHTTPRequestHandler):
             logging.exception('Invalid request');self.respond(400,{'error':'资料格式不完整，请刷新并核对必填项'})
         except Exception:
             logging.exception('Request failed');self.respond(500,{'error':'未能完成操作，资料未确认保存。请查看本地运行日志后重试'})
+    def aftercare_api(self,path):
+        route=path.removeprefix('/api/aftercare/')
+        query=parse_qs(urlparse(self.path).query)
+        public=route in ('portal','submit') or (route.startswith('file/') and bool(query.get('token')))
+        user=self.session()
+        origin=self.headers.get('Origin')
+        if origin and origin not in runtime_config.allowed_origins(PORT):raise core.Problem('不允许跨站提交',403)
+        raw=b''
+        if self.command!='GET':
+            size=int(self.headers.get('Content-Length','0'))
+            if not 0<size<=22*1024*1024:raise core.Problem('提交内容为空或附件超过限制',413)
+            raw=self.rfile.read(size)
+            if not public:
+                if not user:raise core.Problem('请先登录统一工作平台',401)
+                if not hmac.compare_digest(self.headers.get('X-Yifun-Token',''),user['csrf']):raise core.Problem('会话已失效，请刷新后重试',403)
+        with database.connect() as db:
+            if self.command!='GET':db.execute('BEGIN IMMEDIATE')
+            headers={k.lower():v for k,v in self.headers.items()}
+            status,response_headers,body=aftercare.handle(db,user,self.path,self.command,raw,headers,runtime_config.public_origin() or 'http://127.0.0.1:'+str(PORT))
+        self.aftercare_response_headers=response_headers
+        return self.respond(status,body,response_headers.get('content-type','application/json; charset=utf-8'))
+
     def get(self,path):
+        if path.startswith('/api/aftercare/'):return self.aftercare_api(path)
+        if path=='/aftercare/bootstrap.js':
+            with database.connect() as db:body=aftercare.bootstrap(db,self.session())
+            return self.respond(200,body,'application/javascript; charset=utf-8')
+        if path.startswith('/aftercare/'):
+            names={'/aftercare/workspace':'workflow.html','/aftercare/customers':'customers.html','/aftercare/request':'request.html'}
+            customer_public=path=='/aftercare/request' or path in ('/aftercare/public/request.js','/aftercare/public/portal.css')
+            if not customer_public and not self.session():raise core.Problem('请先登录统一工作平台',401)
+            name=names.get(path) or path.removeprefix('/aftercare/public/')
+            target=(aftercare.HOME/'public'/name).resolve()
+            if not target.is_relative_to((aftercare.HOME/'public').resolve()) or not target.is_file():raise core.Problem('页面不存在',404)
+            return self.respond(200,target.read_bytes(),mimetypes.guess_type(str(target))[0] or 'application/octet-stream')
         assets={'/sales-dashboard.css':'sales-dashboard.css','/sales-dashboard.js':'sales-dashboard.js','/read-cache.js':'read-cache.js','/password-recovery':'password-recovery.html','/password-recovery.js':'password-recovery.js','/dashboard.css':'dashboard.css','/operations.js':'operations.js','/operations.css':'operations.css','/':'workplace.html','/workplace.js':'workplace.js','/dashboard.js':'dashboard.js','/workplace.css':'workplace.css','/workplace-theme.css':'workplace-theme.css','/workplace-logo.png':'workplace-logo.png','/workplace-favicon.svg':'workplace-favicon.svg','/workplace-favicon.png':'workplace-favicon.png'}
         if path in assets:
             file=ROOT/assets[path];return self.respond(200,file.read_bytes(),mimetypes.guess_type(file)[0] or 'application/octet-stream')

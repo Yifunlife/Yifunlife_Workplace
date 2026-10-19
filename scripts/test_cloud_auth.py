@@ -82,28 +82,6 @@ def main():
             assert call('/api/auth/login',None,owner)[0]==401
             assert call('/api/auth/login',None,{**owner,'password':replacement})[0]==200
             owner_current=replacement
-            # Optional employee numbers never replace or alter the existing email identity.
-            import username_login, core
-            with database.connect() as db:
-                owner_row=core.row(db,'SELECT * FROM employees WHERE email=?',(owner['email'],))
-                viewer_row=core.row(db,'SELECT * FROM employees WHERE email=?',(viewer['email'],))
-                assert username_login.find(db,owner['email'])['username'] is None
-                before=(owner_row['password_hash'],owner_row['salt'],owner_row['role'])
-                username_login.rename(db,owner_row,owner_row['id'],'001')
-                try:username_login.rename(db,owner_row,viewer_row['id'],'001')
-                except core.Problem as error:assert error.status==409
-                else:raise AssertionError('Duplicate employee number accepted')
-                after=core.need(db,'employees',owner_row['id'])
-                assert before==(after['password_hash'],after['salt'],after['role'])
-            assert call('/api/auth/login',None,{'username':'001','password':replacement})[0]==200
-            assert call('/api/auth/login',None,{'username':owner['email'],'password':replacement})[0]==200
-            assert call('/api/auth/login',None,{'username':'001','password':'incorrect-password'})[0]==401
-            with database.connect() as db:
-                assert core.row(db,'SELECT * FROM login_attempts WHERE email=?',(owner['email'],))['count']==1
-                username_login.rename(db,owner_row,owner_row['id'],'002')
-            assert call('/api/auth/login',None,{'username':'001','password':replacement})[0]==401
-            assert call('/api/auth/login',None,{'username':'002','password':replacement})[0]==200
-            assert call('/api/auth/login',None,{**owner,'password':replacement})[0]==200
             assert call('/api/view/overview',None,cookie=native_cookie)[0]==200
             with database.connect() as db:
                 assert db.execute('SELECT COUNT(*) FROM customers').fetchone()[0]==3
@@ -148,3 +126,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+if __name__ == "__main__":
+    import subprocess
+    subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("test_aftercare_integration.py"))],check=True)

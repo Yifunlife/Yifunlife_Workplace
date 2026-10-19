@@ -54,8 +54,8 @@ def report(db,user,projects,today):
             'improvement':text(p.get('suggestion')),'closed':p.get('stage') in CLOSED,
             'shared_test':p.get('source')=='模拟测试' or project.get('notes')=='共享测试项目'}
         records.append(record)
-    return {'records':records,'today':today,'year':today[:4],'connection':'售后网站待接通',
-        'notices':['当前来自统一平台授权范围内的售后工单，一条工单中的问题记录计一条；专门售后网站完成后对接独立问题与设备编号。',
+    return {'records':records,'today':today,'year':today[:4],'connection':'售后工作台已接通',
+        'notices':['当前包含集团原售后记录与新售后工作台已提交的问题；每条独立问题计一条，登记草稿不计入。',
         '年度与报告按故障日期统计；故障日期未填写时暂按反馈日期，并标明日期来源。两者均缺失的记录不混入期间统计。',
         '首次故障按同一设备全部历史最早故障日期计算；未登记启用日期时仅显示交付后天数，不混入使用时长分布。',
         '维修后复发须具备同一设备编号、故障日期和更早的维修完成日期；原重复标记单独显示，不能当作已核实复发。',

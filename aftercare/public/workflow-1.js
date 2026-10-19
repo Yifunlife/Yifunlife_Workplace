@@ -1,0 +1,17 @@
+
+(function(window,globalThis){
+
+(()=>{const root=document.getElementById('warehouse-v1');
+const projects=[];
+let tab='overview',selected=null;
+const ready=p=>p.items.filter(i=>i[2]===i[4]).length;
+function detail(p){return '<div class="detail"><div class="panel-head"><h3>'+p.name+' · 仓库物品明细</h3><button type="button" class="cursor-interaction" data-close>收起详情</button></div><div class="detail-summary"><span>业务员：'+p.sales+'</span><span>工程师：'+p.engineer+'</span><span>仓库负责人：'+p.keeper+'</span><span>计划发货：'+p.date+'</span></div><div class="table-wrap"><table><thead><tr><th>物品</th><th>项目需求</th><th>实际到货</th><th>合格预留</th><th>待补齐</th><th>库位</th><th>预计到货</th><th>当前卡点</th></tr></thead><tbody>'+p.items.map(i=>'<tr><td>'+i[0]+'</td><td>'+i[2]+i[1]+'</td><td>'+i[3]+i[1]+'</td><td>'+i[4]+i[1]+'</td><td class="'+(i[2]>i[4]?'warn':'')+'">'+(i[2]-i[4])+i[1]+'</td><td>'+i[5]+'</td><td>'+i[6]+'</td><td class="note">'+i[7]+'</td></tr>').join('')+'</tbody></table></div></div>'}
+function table(expand){return '<table><thead><tr><th>项目</th><th>物品项数</th><th>已齐 / 未齐</th><th>齐货率</th><th>计划发货</th><th>当前状态</th><th>跟进</th></tr></thead><tbody>'+projects.map((p,index)=>{const n=ready(p),open=expand&&selected===index;return '<tr data-row="'+index+'"><td>'+p.name+'<small>'+p.keeper+'</small></td><td>'+p.items.length+'项</td><td>'+n+' / '+(p.items.length-n)+'项</td><td>'+Math.round(n/p.items.length*100)+'%</td><td>'+p.date+'</td><td><span class="badge '+(n<p.items.length?'warn':'')+'">'+(n===p.items.length?'已齐货 · 待发货':'未齐货')+'</span></td><td><button type="button" class="link cursor-interaction" data-detail="'+index+'" aria-expanded="'+open+'">'+(open?'收起':'详情')+'</button></td></tr>'+(open?'<tr><td colspan="7" style="padding:0">'+detail(p)+'</td></tr>':'')}).join('')+'</tbody></table>'}
+function render(){root.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==tab);root.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===tab)));root.querySelector('[data-project-overview]').innerHTML=table(false);root.querySelector('[data-project-full]').innerHTML=table(true)}
+function restore(s){const p=s?.privateContent;if(p){tab=['overview','projects','inbound','outbound','stock','issues'].includes(p.tab)?p.tab:'overview';selected=Number.isInteger(p.selected)&&projects[p.selected]?p.selected:null}render()}
+root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.tab||b.dataset.go){tab=b.dataset.tab||b.dataset.go;selected=null}if(b.dataset.detail!==undefined){let n=Number(b.dataset.detail);selected=tab==='projects'&&selected===n?null:n;tab='projects'}if(b.hasAttribute('data-close'))selected=null;render();window.openai?.setWidgetState?.({modelContent:{部门:'仓库与物流中心',页面:tab,项目:selected===null?null:projects[selected].name},privateContent:{tab,selected}})?.catch(()=>{});if(selected!==null)root.querySelector('[data-row="'+selected+'"]').scrollIntoView({block:'nearest',behavior:'instant'})});
+restore(window.openai?.widgetState);window.addEventListener('openai:set_globals',e=>{if(e.detail?.globals?.widgetState)restore(e.detail.globals.widgetState)});
+if(globalThis.Tweak){const settings={compact:false};const tweak=new Tweak({container:root,onChange:()=>{root.querySelector('main').style.padding=settings.compact?'12px':'22px'}});tweak.addToggle(settings,'compact',{label:'紧凑布局'})}
+})();
+
+})(window.__yifunHub.panelWindow("warehouse"),window.__yifunHub.moduleGlobals);

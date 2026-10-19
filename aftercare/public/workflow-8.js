@@ -1,0 +1,22 @@
+(()=>{
+const root=document.getElementById('yw-after-sales');
+root.dataset.authenticated='true';
+const pages=['售后驾驶舱','售后工单中心','售后审核中心','工程下单中心','采购中心','生产中心','仓库与物流中心','安装中心','财务中心','客户工单中心'];
+const roles={管理员:{view:pages,write:pages,note:'管理人员权限、查看与操作全部模块'},负责人:{view:pages,write:[],note:'查看全流程和费用，业务操作由各部门完成'},售后专员:{view:[pages[1],pages[9]],write:[pages[1],pages[9]],note:'登记售后、提交审核、跟踪订单完整进度'},审核人员:{view:[pages[1],pages[2],pages[9]],write:[pages[2]],note:'审核问题、保存方案并分派部门'},工程人员:{view:[pages[1],pages[3]],write:[pages[3]],note:'填写工程单、下单组和执行部门'},采购人员:{view:[pages[1],pages[4]],write:[pages[4]],note:'填写采购结果、单号和采购费用'},生产人员:{view:[pages[1],pages[5]],write:[pages[5]],note:'接收生产、排期、登记费用和完工交接'},仓库人员:{view:[pages[6]],write:[pages[6]],note:'仓库到货、齐货及发货跟进'},安装人员:{view:[pages[7]],write:[pages[7]],note:'安装排期、服务记录及交付'},财务人员:{view:[pages[8]],write:[pages[8]],note:'查看部门费用、核对及登记付款'}};
+const person=()=>window.__EMPLOYEE__,role=()=>roles[person().role];
+function currentPage(){return window.__yifunWorkflow?.page()||root.querySelector('#yw-title')?.textContent;}
+function canWrite(page=currentPage()){return !!person()?.active&&role().write.includes(page);}
+const account=document.createElement('div');account.className='yw-account';
+const label=document.createElement('strong');label.dataset.accountPerson='';label.textContent=person().name+' · '+person().role;account.append(label);
+const manage=document.createElement('button');manage.textContent='集团账号管理';manage.hidden=person().role!=='管理员';manage.onclick=()=>{window.parent.location.href='/?view=employees'};account.append(manage);
+const shareLink=document.createElement('button');shareLink.textContent='发送客户链接';shareLink.hidden=!role().view.includes('客户工单中心');shareLink.onclick=()=>{window.__yifunWorkflow.navigate('客户工单中心');};account.append(shareLink);
+const logout=document.createElement('button');logout.textContent='退出登录';logout.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});window.parent.location.href='/';};account.append(logout);root.querySelector(':scope>header').append(account);
+window.__yifunAccess={canViewPage:p=>role().view.includes(p),canViewRecord:()=>true,canEditRecord:()=>canWrite(),canWrite,current:person};
+const readButtons='[data-af-analysis],[data-track-order],[data-close],[data-close-media],[data-review-media],[data-toggle-review-item],[data-operation-id],[data-engineering-id],[data-review-id],[data-tab],[data-go],[data-page],[data-detail],[data-open],[data-service],[data-filter],[data-id],[data-prod-order],[data-template],.yw-mobile-menu';
+root.addEventListener('click',e=>{if(e.target.closest('[data-customer-share]')){e.preventDefault();e.stopImmediatePropagation();window.__yifunWorkflow.navigate('客户工单中心');return;}if(e.target.closest('.yw-account,.mobile-app-bottomnav,.yw-mobile-account-sheet'))return;const b=e.target.closest('button');if(!b)return;if(b.dataset.nav){if(!role().view.includes(b.dataset.nav)){e.preventDefault();e.stopImmediatePropagation();}return;}if(b.matches(readButtons))return;if(!canWrite()){e.preventDefault();e.stopImmediatePropagation();alert('当前岗位没有此项操作权限。');}},true);
+root.addEventListener('submit',e=>{if(!canWrite()){e.preventDefault();e.stopImmediatePropagation();}},true);
+function paint(){root.querySelectorAll('[data-nav="财务中心"]').forEach(b=>b.hidden=true);root.dataset.accessReadonly=String(!canWrite());root.querySelectorAll(':scope>.shell>nav [data-nav]').forEach(b=>{const hidden=!role().view.includes(b.dataset.nav);if(b.hidden!==hidden)b.hidden=hidden;});if(!canWrite(pages[1]))root.querySelectorAll('#yw-entry').forEach(e=>e.hidden=true);}
+let scheduled=false;new MutationObserver(()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;paint();});}).observe(root.querySelector('.shell'),{childList:true,subtree:true});
+const view=new URLSearchParams(location.search).get('view'),landing=person().role==='售后专员'?'客户工单中心':person().role==='审核人员'?'售后审核中心':role().view[0];window.__yifunWorkflow?.navigate(view==='review'&&role().view.includes('售后审核中心')?'售后审核中心':view==='customer-inbox'&&role().view.includes('客户工单中心')?'客户工单中心':landing);paint();
+setInterval(async()=>{try{const j=await(await fetch('/api/aftercare/status',{cache:'no-store'})).json();if(!j.user||j.user.mustChange||j.user.role!==person().role)location.href='/';}catch{}},60000);
+})();
