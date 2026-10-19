@@ -2,6 +2,7 @@
 from collections import defaultdict
 from datetime import timedelta
 import core
+import aftersales_expenses
 
 
 def amounts(values):
@@ -102,7 +103,7 @@ def report(db, baselines, projects, start, end, day_of, include_stock=True):
     inventory=[dict(r) for r in db.execute('''SELECT l.category,COUNT(DISTINCT b.product_id) sku_count FROM
         (SELECT location_id,product_id,SUM(quantity) quantity FROM stock_movements GROUP BY location_id,product_id HAVING SUM(quantity)>0) b
         JOIN warehouse_locations l ON l.id=b.location_id GROUP BY l.category''')]
-    return {'enabled':enabled,'as_of':end.isoformat(),'summary':summary,'projects':project_rows,'orders':rows,
+    return {'aftersales_expenses':aftersales_expenses.report(db,projects,end),'enabled':enabled,'as_of':end.isoformat(),'summary':summary,'projects':project_rows,'orders':rows,
             'suppliers':suppliers,'supplier_due_minor':sum(s['remaining_minor'] for s in suppliers if s['remaining_minor'] is not None) if enabled else None,
             'unknown_supplier_count':sum(s['remaining_minor'] is None for s in suppliers) if enabled else None,
             'risks':risks if enabled else None,'risk_project_count':len({r['project_id'] for r in risks if r['project_id']}) if enabled else None,
@@ -125,6 +126,11 @@ def export_csv(data, tab):
         rows += [[],['供应商付款'],['供应商','采购单','币种','已付款','待付款','额外成本（独立）']]
         rows += [[s['supplier_name'],s['po_number'],s['currency'] or 'CNY',money(s['paid_minor']),money(s['remaining_minor']),money(s['extra_cost_minor'])] for s in f['suppliers']]
         if not f['enabled']:rows.append(['财务暂未开放'])
+        cost=f['aftersales_expenses']
+        rows += [[],['售后费用年度合计（公司承担）','币种','金额']]+[['年度',r['currency'],money(r['minor'])] for r in cost['annual']]
+        rows += [['售后费用本月合计（公司承担）','币种','金额']]+[['月度',r['currency'],money(r['minor'])] for r in cost['monthly']]
+        rows += [[],['公司承担的售后费用（已登记）'],['年度起始',cost['from'],'截止',cost['to']],['项目','工单','费用日期','类别','币种','金额','费用编号／凭证号','说明']]
+        rows += [[r['project_name'],r['ticket_id'] or '原费用登记',r['date'],r['category_label'],r['currency'],money(r['minor']),r['reference'],r['note']] for r in cost['records']]
         rows += [[],['近六个月月末累计趋势'],['月份','币种','累计合同','累计已收','待收款']]
         rows += [[r['month'],r['currency'],money(r['contract_minor']),money(r['receipt']),money(r['receivable_minor'])] for r in f['trend']]
         rows += [[],['库存价值','待核定'],['资料说明',f['payment_plan_note']],['预计利润说明','按同币种净合同金额减当前成本预算计算，不代表实际利润']]

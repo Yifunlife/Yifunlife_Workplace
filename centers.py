@@ -99,6 +99,9 @@ def history_changes(db,page,before,after):
     return [{'label':label,'before':display(key,before.get(key),before),'after':display(key,after.get(key),after)} for key,label in labels.items() if key in after and before.get(key)!=after.get(key)]
 
 def execute(db,user,action,p):
+    if action in ('aftersales-expense','aftersales-expense-void'):
+        import aftersales_expenses
+        return aftersales_expenses.save(db,user,p) if action=='aftersales-expense' else aftersales_expenses.void(db,user,p)
     if action=='aftersales-progress':
         import aftersales_dashboard
         return aftersales_dashboard.save(db,user,p)
@@ -372,6 +375,8 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     elif center=='aftersales':
         import aftersales_dashboard, aftersales_analysis
         aftersales_report=aftersales_dashboard.report(db,user,projects,today)
+        import aftersales_expenses
+        aftersales_report['expenses']=aftersales_expenses.report(db,projects,today) if user['role'] in aftersales_expenses.READERS else None
         aftersales_report['analysis']=aftersales_analysis.report(db,user,projects,today)
         tickets=[dict(r) for r in db.execute('SELECT * FROM service_tickets') if scoped(r)]
         open_count=closed=overdue=0

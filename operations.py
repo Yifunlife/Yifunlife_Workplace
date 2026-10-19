@@ -156,6 +156,8 @@ def save(db,user,page,p):
     for key in fields:
         if key not in optional and key not in ('amount_minor',):values[key]=c.text(values[key],key)
         if isinstance(values[key],str) and len(values[key])>10000:raise c.Problem('单个字段内容过长')
+    if page=='expenses' and values.get('category')=='aftersales' and db.execute('SELECT 1 FROM aftersales_expenses WHERE reference=?',(values['reference'],)).fetchone():
+        raise c.Problem('该凭证已在售后费用中登记，请核对，避免重复计入')
     if 'project_id' in values:
         if not values['project_id'] and page!='opportunities':raise c.Problem('请选择关联项目')
         if values['project_id']:project_check(db,user,values['project_id'])

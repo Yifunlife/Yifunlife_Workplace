@@ -120,3 +120,11 @@ html[data-workplace-center] #dashboard-drill :is(th,td){padding:6px 10px;font-si
 .ceo-summary-card .ceo-preview .dashboard-link{min-height:0;padding:0}
 
 .ceo-finance-metrics.ceo-annual-expenses{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.ceo-annual-expenses .ceo-finance-metric{min-height:110px;padding:12px 14px}.ceo-annual-expenses .ceo-finance-metric>strong{font-size:20px}.ceo-annual-expenses .ceo-finance-metric>small{margin-top:8px}@media(max-width:640px){.ceo-finance-metrics.ceo-annual-expenses{grid-template-columns:1fr}}
+
+/* Annual company aftersales costs, with a quieter monthly subtotal. */
+.ceo-finance-metrics:not(.ceo-annual-expenses){grid-template-columns:repeat(4,minmax(0,1fr))}
+.ceo-finance-metric .ceo-aftersales-month{display:block;font-size:12px;color:var(--wp-primary);margin-bottom:5px}
+.ceo-finance-metric .ceo-aftersales-month .money-line{display:inline;font-size:12px;margin-right:6px}
+.ceo-finance-metric .money-line{overflow-wrap:anywhere}
+@media(min-width:1900px){.ceo-finance-metrics:not(.ceo-annual-expenses){grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media(max-width:640px){.ceo-finance-metrics:not(.ceo-annual-expenses){grid-template-columns:repeat(2,minmax(0,1fr))}}

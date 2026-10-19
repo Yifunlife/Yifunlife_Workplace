@@ -97,6 +97,16 @@ function designForm(r){
 }
 async function centerAction(name,id){
  if(!name.startsWith('center-')&&name!=='sales-project')return false;
+ if(name==='center-asexpense-new'){
+  const r=centerData?.aftersales;if(!r)return true;
+  const tickets=r.orders.filter(o=>!['客户承担','供应商承担'].includes(o.cost_responsibility));
+  if(!tickets.length){notify('请先建立售后工单，并核对费用承担方');return true;}
+  modal('登记公司承担的售后费用',`<p class="full">只填写公司实际承担部分；客户或供应商承担金额不计入。登记后自动汇总到 CEO 年度及月度售后金额。</p>`+select('ticket_id','关联售后工单',tickets.map(o=>({id:o.id,name:o.name+' · '+o.id})))+select('category','费用类别',[{id:'parts',name:'配件'},{id:'freight',name:'运输'},{id:'labor',name:'人工'},{id:'travel',name:'差旅'},{id:'other',name:'其他'}])+input('amount','公司承担金额','number','',true,'min="0.01" step="0.01"')+select('currency','币种',CENTER_CURRENCIES,'CNY')+input('record_date','实际费用日期','date',r.today)+input('reference','费用编号／凭证号（不可重复）')+textarea('note','费用说明',false),p=>centerCall('aftersales-expense',p),'保存费用');return true;
+ }
+ if(name==='center-asexpense-void'){
+  const r=centerData?.aftersales?.expenses?.records.find(r=>r.id===id&&r.source==='aftersales_expenses');if(!r)return true;
+  modal('作废售后费用',`<p class="full">${esc(r.reference)} · ${centerMoney(r.minor,r.currency)}。作废后不再计入年度及月度合计，原记录与操作历史会保留。</p>`+textarea('reason','作废原因'),p=>centerCall('aftersales-expense-void',{...p,id}),'确认作废');return true;
+ }
  if(name==='sales-project'){view='home';routeRecord=id;await chooseProject(id);return true;}
  if(name==='center-reset'){delete centerFilters[centerPage];await render();return true;}
  if(name==='center-new'||name==='center-edit'){const r=centerRecords?.items.find(r=>r.id===id);if(name==='center-edit'&&!r)throw Error('记录已更新，请刷新');centerRecords.kind==='spend'?spendForm(r):designForm(r);return true;}
@@ -212,6 +222,12 @@ function renderEngineeringBoard(el,data,options={}){
  draw();
 }
 
+function aftersalesExpensePanel(r){
+ const cost=r.expenses;if(!cost)return '';
+ const money=items=>items.length?items.map(a=>centerMoney(a.minor,a.currency)).join(' / '):'尚无登记';
+ const canWrite=r.can_edit&&!session.read_only;
+ return `<section class="as-section aftersales-cost-panel"><div class="as-toolbar"><div><h3>售后总金额 · 公司承担</h3><p class="as-footnote">年度已登记：${money(cost.annual)}　·　本月：${money(cost.monthly)}</p></div>${canWrite?button('center-asexpense-new','登记售后费用','','secondary'):''}</div>${cost.records.length?table(['费用日期','项目／工单','费用类别','公司承担金额','费用编号／凭证号','操作'],cost.records.map(item=>`<tr><td>${esc(item.date)}</td><td>${esc(item.project_name)}<small>${esc(item.ticket_id||'原费用登记')}</small></td><td>${esc(item.category_label)}</td><td>${centerMoney(item.minor,item.currency)}</td><td>${esc(item.reference)}</td><td>${canWrite&&item.source==='aftersales_expenses'?button('center-asexpense-void','作废',item.id,'quiet'):'—'}</td></tr>`)):'<p class="as-footnote">尚未登记费用，暂无可汇总金额。</p>'}<p class="as-footnote">${esc(cost.note)}</p></section>`;
+}
 function renderAftersalesBoard(el,data){
  const r=data.aftersales;let selected='open';
  el.innerHTML='<div class="department-dashboard aftersales-dashboard"></div>';const board=el.firstElementChild;
@@ -223,6 +239,7 @@ function renderAftersalesBoard(el,data){
  function draw(){const rows=subset(selected);
   board.innerHTML=`<header class="as-heading"><div><h2>售后驾驶舱</h2><p>一单到底 · 全程追踪 · 责任到人 · 验收闭环</p></div><span class="as-date">${esc(r.month.replace('-',' 年 '))} 月 · 截至 ${esc(r.today.slice(5).replace('-',' 月 '))} 日</span></header>`+
    `<div class="as-totals">${[['annual','年度售后总订单',r.annual_total,r.year+' 年累计新建'],['monthly','月度售后总订单',r.monthly_total,r.month+' 新建']].map(([key,label,count,note])=>`<button type="button" class="as-total" data-as-filter="${key}" aria-pressed="${selected===key}"><div><span>${label}</span><small>${esc(note)} · 含已关闭工单</small></div><strong>${count}<small> 单</small></strong></button>`).join('')}</div>`+
+   aftersalesExpensePanel(r)+
    `<div class="as-metrics">${filters.map(([key,label,count])=>`<div>${filterButton(key,label,count,'as-metric '+(['overdue','risk'].includes(key)?'as-warning':''))}<small>查看相关工单</small></div>`).join('')}</div>`+
    `<section class="as-section as-flow"><h3>全流程进度</h3>${r.stages.map(s=>filterButton(s.label,s.label,s.count,'as-step')).join('')}${r.unclassified_stage?`<p class="as-footnote">另有 ${r.unclassified_stage} 单流程待核对</p>`:''}</section>`+
    `<section class="as-section"><div class="as-toolbar"><h3 id="as-live-count" aria-live="polite">售后工单跟踪 · ${rows.length} 单${selected==='open'?'':' · '+esc(filterLabel(selected))}</h3><div class="as-tabs">${[['open','全部'],['overdue','超期'],['risk','安全风险']].map(([key,label])=>`<button type="button" data-as-filter="${key}" aria-pressed="${selected===key}">${label}</button>`).join('')}</div></div><div class="as-table-wrap"><table><thead><tr>${['工单 / 项目名称','合同期限','商务','设计师','工程师','当前阶段','负责人','操作'].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(o=>`<tr><td><strong>${esc(o.name)}</strong><small>${esc(o.id)}${o.shared_test?' · 测试数据':''}</small><small>${esc(o.product)}</small></td><td>${esc(o.contract_deadline||'待登记')}<small class="${o.overdue?'as-warning-text':''}">预计完成：${esc(o.due_date||'待登记')}${o.overdue?' · 已超期':''}</small></td><td>${esc(o.sales_owner)}</td><td>${esc(o.design_owner)}</td><td>${esc(o.engineering_owner)}</td><td>${esc(o.stage)}${o.risk?`<small class="as-warning-text">${esc(o.safety_level)}</small>`:''}</td><td>${esc(o.owner)}</td><td>${session.modules.includes('aftersales')?`<button type="button" class="quiet" data-as-open="${esc(o.id)}">查看工单</button>`:''}${r.can_edit&&!session.read_only&&!o.closed?`<button type="button" class="quiet" data-as-edit="${esc(o.id)}">流程 / 风险登记</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8">当前没有此类工单</td></tr>'}</tbody></table></div></section>`+
