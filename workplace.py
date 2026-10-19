@@ -10,6 +10,7 @@ import project_access as access
 import ceo_dashboard
 import operations
 import work_reminders
+import username_login
 import centers
 import connections
 import account_reporting
@@ -37,7 +38,7 @@ def init():
         BRIDGE_PATH.write_text(secrets.token_urlsafe(48));BRIDGE_PATH.chmod(0o600)
 
 def password_hash(password,salt):return hashlib.pbkdf2_hmac('sha256',password.encode(),bytes.fromhex(salt),300000).hex()
-def public(user):return {k:user[k] for k in ('id','email','name','role','status','supplier_id')}
+def public(user):return {**{k:user[k] for k in ('id','email','name','role','status','supplier_id')},'username':user.get('username','')}
 def password(value):
     if not isinstance(value,str) or not 10<=len(value)<=256:raise core.Problem('密码须为 10 至 256 位')
     return value
@@ -52,7 +53,8 @@ def add_employee(db,p,setup=False):
     else:supplier=None
     salt=secrets.token_hex(16);key=core.uid();secret=password(p.get('password'))
     db.execute('INSERT INTO employees VALUES(?,?,?,?,?,?,?,?,?)',(key,email,core.text(p.get('name'),'姓名'),role,supplier,'active',password_hash(secret,salt),salt,core.now()))
-    return core.need(db,'employees',key)
+    user=core.need(db,'employees',key);user['username']=username_login.register(db,user,p.get('username'))
+    return user
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -75,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return None
             with database.connect() as db:
-                user = core.row(db, "SELECT * FROM employees WHERE id=? AND role='admin' AND status='active'", (json.loads(config.read_text())['user_id'],))
+                user = core.row(db, "SELECT e.*,n.username FROM employees e LEFT JOIN employee_login_names n ON n.employee_id=e.id WHERE e.id=? AND e.role='admin' AND e.status='active'", (json.loads(config.read_text())['user_id'],))
                 if not user:return None
                 raw = secrets.token_urlsafe(32)
                 digest = hashlib.sha256(raw.encode()).hexdigest()
@@ -87,7 +89,7 @@ class Handler(BaseHTTPRequestHandler):
             return user
         digest=hashlib.sha256(token.value.encode()).hexdigest()
         with database.connect() as db:
-            user=core.row(db,"SELECT e.*,s.token_hash,s.csrf,s.project_id,s.quote_kind,s.parent_order_id,s.expires FROM employee_sessions s JOIN employees e ON e.id=s.user_id WHERE s.token_hash=? AND e.status='active' AND s.expires>?",(digest,time.time()))
+            user=core.row(db,"SELECT e.*,s.token_hash,s.csrf,s.project_id,s.quote_kind,s.parent_order_id,s.expires,n.username FROM employee_sessions s JOIN employees e ON e.id=s.user_id LEFT JOIN employee_login_names n ON n.employee_id=e.id WHERE s.token_hash=? AND e.status='active' AND s.expires>?",(digest,time.time()))
             if not user and not runtime_config.public_origin() and (ROOT/'data/local-admin.json').exists():
                 del self.headers['Cookie']
                 return self.session()
@@ -167,6 +169,10 @@ class Handler(BaseHTTPRequestHandler):
                 with database.connect() as db:
                     db.execute('BEGIN IMMEDIATE');employee=add_employee(db,p);core.audit(db,user,'employee',employee['id'],'创建员工',public(employee))
                 return self.respond(201,{'user':public(employee)})
+            if path=='/api/employee-username':
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE');result=username_login.rename(db,user,p.get('id'),p.get('username'))
+                return self.respond(200,result)
             if path=='/api/employee-status':
                 core.permit(user,'admin')
                 with database.connect() as db:
@@ -283,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/employees':
             core.permit(user,'admin')
             with database.connect() as db:
-                employees=[public(dict(r)) for r in db.execute('SELECT * FROM employees ORDER BY created_at')]
+                employees=[public(dict(r)) for r in db.execute('SELECT e.*,n.username FROM employees e LEFT JOIN employee_login_names n ON n.employee_id=e.id ORDER BY e.created_at')]
                 for employee in employees:employee['centers']=[r[0] for r in db.execute('SELECT center FROM center_members WHERE employee_id=?',(employee['id'],))]
             return self.respond(200,{'items':employees})
         if path=='/api/work-reminders':
@@ -335,10 +341,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200,result)
         raise core.Problem('页面不存在',404)
     def request_recovery(self,p):
-        email=core.text(p.get('email'),'邮箱').lower()
-        if len(email)>254 or '@' not in email:raise core.Problem('请填写有效邮箱')
+        identifier=core.text(p.get('username') or p.get('email'),'邮箱或工号',limit=254)
         with database.connect() as db:
-            permitted=email in runtime_config.allowed_emails() if runtime_config.container_mode() else bool(db.execute('SELECT 1 FROM employees WHERE email=?',(email,)).fetchone())
+            account=username_login.find(db,identifier)
+            email=account['email'] if account else identifier.lower() if '@' in identifier else None
+            permitted=bool(email and (email in runtime_config.allowed_emails() if runtime_config.container_mode() else account))
             if permitted:
                 db.execute('INSERT INTO account_recovery_requests VALUES(?,?) ON CONFLICT(email) DO UPDATE SET requested_at=CASE WHEN requested_at<? THEN excluded.requested_at ELSE requested_at END',(email,time.time(),time.time()-900))
         return self.respond(200,{'ok':True,'message':'申请已提交，请联系管理员获取一次性重置链接。'})
@@ -386,14 +393,16 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(200,{'ok':True})
 
     def authenticate(self,path,p):
-        email=core.text(p.get('email'),'邮箱').lower();secret=password(p.get('password'));stamp=time.time()
+        identifier=core.text(p.get('email') if path.endswith('/setup') else (p.get('username') or p.get('email')),'邮箱或工号',limit=254);secret=password(p.get('password'));stamp=time.time()
         identity=runtime_config.verified_email(self.headers)
-        if runtime_config.password_login():
-            if email not in runtime_config.allowed_emails():raise core.Problem('邮箱或密码不正确',401)
-            if path.endswith('/setup'):raise core.Problem('请使用已经建立的账号登录；新账号由管理员建立',403)
-        elif runtime_config.container_mode() and identity!=email:raise core.Problem('只能使用已验证的站点邮箱登录',403)
         with database.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            account=username_login.find(db,identifier) if not path.endswith('/setup') else None
+            email=account['email'] if account else identifier.strip().lower()
+            if runtime_config.password_login():
+                if email not in runtime_config.allowed_emails():raise core.Problem('邮箱、工号或密码不正确',401)
+                if path.endswith('/setup'):raise core.Problem('请使用已经建立的账号登录；新账号由管理员建立',403)
+            elif runtime_config.container_mode() and identity!=email:raise core.Problem('只能使用已验证的站点邮箱登录',403)
             if path.endswith('/setup'):
                 if runtime_config.container_mode():
                     if db.execute('SELECT 1 FROM employees WHERE email=?',(email,)).fetchone():raise core.Problem('账号已建立，请登录',409)
@@ -411,10 +420,10 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 attempts=core.row(db,'SELECT * FROM login_attempts WHERE email=?',(email,))
                 if attempts and attempts['expires']>stamp and attempts['count']>=8:raise core.Problem('尝试次数过多，请 15 分钟后重试',429)
-                user=core.row(db,"SELECT * FROM employees WHERE email=? AND status='active'",(email,))
-                valid=user and hmac.compare_digest(password_hash(secret,user['salt']),user['password_hash'])
+                user=account
+                valid=user and user['status']=='active' and hmac.compare_digest(password_hash(secret,user['salt']),user['password_hash'])
                 if not valid:
-                    db.execute('INSERT INTO login_attempts VALUES(?,1,?) ON CONFLICT(email) DO UPDATE SET count=CASE WHEN expires<? THEN 1 ELSE count+1 END,expires=?',(email,stamp+900,stamp,stamp+900));db.commit();raise core.Problem('邮箱或密码不正确',401)
+                    db.execute('INSERT INTO login_attempts VALUES(?,1,?) ON CONFLICT(email) DO UPDATE SET count=CASE WHEN expires<? THEN 1 ELSE count+1 END,expires=?',(email,stamp+900,stamp,stamp+900));db.commit();raise core.Problem('邮箱、工号或密码不正确',401)
                 db.execute('DELETE FROM login_attempts WHERE email=?',(email,))
             token=secrets.token_urlsafe(32);csrf=secrets.token_urlsafe(32)
             db.execute('DELETE FROM employee_sessions WHERE expires<?',(stamp,))
