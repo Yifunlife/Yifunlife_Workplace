@@ -26,13 +26,15 @@ const projectName=id=>state.projects.find(p=>p.id===id)?.name||id;
 const baselineName=id=>state.baselines.find(b=>b.id===id)?.number||id;
 const readCache=new YifunReadCache();
 const nativeFrames=new Map();
-function clearPageCache(){readCache.clear();}
-function pageLoading(el,title,description=''){
+function clearPageCache(){readCache.clear();reminderSnapshots.clear();}
+function pageLoading(el,title,description='',paths=[]){
+ if(paths.length&&paths.every(path=>readCache.has((session?.user?.id||'anonymous')+':'+path)))return;
  el.innerHTML=head(title,description)+`<div class="page-skeleton" role="status" aria-label="正在加载数据"><div></div><div></div><div></div><span class="muted">加载数据中…</span></div>`;
 }
 async function api(path,p){
  const write=p!==undefined;
- if(write)clearPageCache();
+ const invalidate=write&&path!=='/api/context';
+ if(invalidate)clearPageCache();
  const load=async()=>{
   const r=await fetch(path,{method:write?'POST':'GET',headers:{'Content-Type':'application/json',...(session?.csrf?{'X-Yifun-Token':session.csrf}:{})},body:write?JSON.stringify(p):undefined});
   const result=await r.json();
@@ -44,14 +46,14 @@ async function api(path,p){
     ++renderGeneration;++reminderRequest;nativeFrames.clear();login();
     $('#login-error').textContent='登录已过期，请重新登录。';
    }
-   throw new Error(result.error||'操作失败，请重试');
+   const error=new Error(result.error||'操作失败，请重试');error.status=r.status;throw error;
   }
-  if(write){clearPageCache();queueMicrotask(()=>refreshWorkReminders());broadcastWorkChange();}return result;
+  if(write){if(invalidate)clearPageCache();queueMicrotask(()=>refreshWorkReminders());if(invalidate)broadcastWorkChange();}return result;
  };
  const cacheable=!write&&/^\/api\/(centers\/(dashboard|records)|ops\/view|dashboard(?:\?|$)|view\/overview|connections(?:\?|$))/.test(path);
  if(!cacheable)return load();
  const generation=renderGeneration,currentView=view,scope=session?.user?.id||'anonymous';
- return readCache.read(scope+':'+path,load,{onUpdate:()=>{if(generation===renderGeneration&&view===currentView&&!$('#dialog').open&&!document.activeElement?.matches('input,select,textarea,[contenteditable]'))render().catch(error=>notify(error.message));},onError:()=>{if(generation===renderGeneration)notify('后台更新失败，当前显示上次数据，请点击刷新重试。');}});
+ return readCache.read(scope+':'+path,load,{onUpdate:()=>{if(generation===renderGeneration&&view===currentView&&!$('#dialog').open&&!document.activeElement?.matches('input,select,textarea,[contenteditable]'))render().catch(error=>notify(error.message));},onError:error=>{if(generation!==renderGeneration)return;if([401,403,404].includes(error.status)){clearPageCache();if($('#dialog').open)closeModal();$('#content').innerHTML=empty('当前页面无法访问',error.message);}else notify('后台更新失败，当前显示上次数据，请点击刷新重试。');}});
 }
 const act=(name,p)=>api(`/api/action/${name}`,p);
 function notify(message){$('#notice').textContent=message;$('#notice').classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#notice').classList.remove('show'),6500);}
@@ -101,7 +103,7 @@ async function render(){workplacePageUrl();const current=++renderGeneration;refr
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));
  sections.hidden=!section||section.pages.length<2||section.id==='crm';sections.classList.toggle('center-sections-grouped',Boolean(group));
  sections.innerHTML=sections.hidden?'':group?`<nav class="center-group-tabs" aria-label="${esc(section.name)}分区">${section.groups.map(g=>`<button data-view="${g.pages[0][0]}" data-center-group="${g.pages[0][0]}">${esc(g.name)}</button>`).join('')}</nav><nav class="center-page-tabs" aria-label="${esc(group.name)}页面">${group.pages.map(([id,name])=>`<button data-view="${id}">${esc(name)}</button>`).join('')}</nav>`:`${section.id==='marketing'?'':`<strong>${esc(section.name)}</strong>`}<nav aria-label="${esc(section.name)}页面">${section.pages.filter(([id])=>section.id!=='marketing'||id==='center-marketing').map(([id,name])=>`<button data-view="${id}">${esc(name)}</button>`).join('')}</nav>`;
- if(center&&!wasCenter)$('#center-back').focus();document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',(b.dataset.center?b.dataset.center===section?.id:b.dataset.centerGroup?b.dataset.centerGroup===group?.pages[0][0]:b.dataset.view===view)?'page':'false'));const el=$('#content');el.className='';el.hidden=false;if([...nativeFrames.values()].some(frame=>frame.style.display==='block'))clearPageCache();nativeFrames.forEach(frame=>frame.style.display='none');if(wasCenter&&!center)el.focus();
+ if(center&&!wasCenter)$('#center-back').focus();document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',(b.dataset.center?b.dataset.center===section?.id:b.dataset.centerGroup?b.dataset.centerGroup===group?.pages[0][0]:b.dataset.view===view)?'page':'false'));const el=$('#content');el.className='';el.hidden=false;if([...nativeFrames.values()].some(frame=>frame.style.display==='block'))readCache.markStale();nativeFrames.forEach(frame=>frame.style.display='none');if(wasCenter&&!center)el.focus();
  if(view==='quote-entry'){el.style.padding='';el.innerHTML=quoteEntry();return;}
  if(view==='quote'&&state?.online_quote){el.style.padding='';await renderOnlineQuote(el,current);return;}
  if(modules[view]){
@@ -204,6 +206,7 @@ async function action(name,id){
 }
 // Shared reminder surface lives outside #content so retained native frames keep it visible.
 let reminderRequest=0,reminderData=null,reminderScope='',reminderFilter='all';
+const reminderSnapshots=new Map();
 let reminderFoldState={user:null,day:null,collapsed:false};
 function reminderCollapsed(){
  const user=session?.user?.id,day=reminderData?.today;
@@ -240,7 +243,12 @@ async function refreshWorkReminders(){
  const el=$('#work-reminders');if(!el||!session?.authenticated)return;
  const request=++reminderRequest,user=session.user.id,context=reminderContext();
  const key=JSON.stringify([user,context.center,context.project]);
- if(key!==reminderScope){reminderScope=key;reminderFilter='all';reminderData=null;el.innerHTML='<div class="work-reminders-loading" role="status">正在读取今日工作提醒…</div>';}
+ if(key!==reminderScope){
+  reminderScope=key;reminderFilter='all';reminderData=null;
+  const cached=reminderSnapshots.get(key),today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+  if(cached&&cached.data.today===today&&Date.now()-cached.at<8*3600000){reminderData=structuredClone(cached.data);drawWorkReminders();}
+  else el.innerHTML='<div class="work-reminders-loading" role="status">正在读取今日工作提醒…</div>';
+ }
  const query=new URLSearchParams();if(context.center)query.set('center',context.center);if(context.project)query.set('project',context.project);
  try{
   // Always read fresh data; personal reminders must never use the page cache.
@@ -248,6 +256,7 @@ async function refreshWorkReminders(){
   if(request!==reminderRequest||!el.isConnected||session?.user?.id!==user)return;
   if(response.status===401){reminderData=null;el.innerHTML='<div class="work-reminders-loading">登录已过期，请重新登录后查看待办。</div>';return;}
   const data=await response.json();if(request!==reminderRequest||!el.isConnected||session?.user?.id!==user)return;if(!response.ok)throw Error(data.error||'暂时无法读取');
+  reminderSnapshots.delete(key);reminderSnapshots.set(key,{at:Date.now(),data:structuredClone(data)});while(reminderSnapshots.size>80)reminderSnapshots.delete(reminderSnapshots.keys().next().value);
   reminderData=data;drawWorkReminders();
  }catch(error){
   if(request!==reminderRequest||!el.isConnected)return;

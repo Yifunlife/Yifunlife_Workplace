@@ -16,11 +16,13 @@ function dashboardUrl(){
   history.replaceState(null,'','/?'+p.toString());
 }
 async function companyDashboard(el,generation){
-  pageLoading(el,'CEO 总看板','项目全生命周期经营总况');
   const params=new URLSearchParams(dashboardPeriod);if(dashboardProject)params.set('project',dashboardProject);
+  pageLoading(el,'CEO 总看板','项目全生命周期经营总况',['/api/dashboard?'+params]);
   const result=await api('/api/dashboard?'+params);
   if(generation!==renderGeneration)return;
   dashboardData=result;dashboardPeriod={from:result.period.from,to:result.period.to};
+  const canonical=new URLSearchParams(dashboardPeriod);if(dashboardProject)canonical.set('project',dashboardProject);
+  readCache.alias(session.user.id+':/api/dashboard?'+params,session.user.id+':/api/dashboard?'+canonical);
   if(result.finance.summary.length&&!result.finance.summary.some(s=>s.currency===dashboardCurrency))dashboardCurrency=result.finance.summary[0].currency;
   dashboardUrl();drawDashboard(el);
 }

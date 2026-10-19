@@ -19,9 +19,10 @@ function centerPages(id){
 }
 function centerPeriod(id){const today=opsDate();return centerFilters[id]||{from:today.slice(0,8)+'01',to:today,currency:'CNY'};}
 async function renderCenter(el,id,generation){
- centerPage=id;centerData=null;pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id]);
+ centerPage=id;centerData=null;
+ const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
+ pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id],['/api/centers/dashboard?'+query]);
  try{
-  const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
   const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='factory'&&data.production){renderProductionBoard(el,data.production);return;}if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
@@ -46,7 +47,7 @@ function salesBoardSections(data){
 }
 async function renderCenterRecords(el,page,generation){
  const kind=page==='center-marketing-spend'?'spend':'design';if(centerPage!==page){centerQuery='';centerStatus='';}centerPage=page;centerRecords=null;
- const title=kind==='spend'?'平台投入登记':'设计任务与工程交接';pageLoading(el,title);
+ const title=kind==='spend'?'平台投入登记':'设计任务与工程交接';pageLoading(el,title,'',['/api/centers/records?'+new URLSearchParams({page:kind,...(project&&kind!=='spend'?{project}:{})})]);
  try{const data=await api('/api/centers/records?'+new URLSearchParams({page:kind,...(project&&kind!=='spend'?{project}:{})}));if(generation!==renderGeneration)return;centerRecords={...data,kind};
   const states=kind==='spend'?{active:'有效记录',void:'已作废'}:DESIGN_STATES;
   el.innerHTML=head(title,kind==='spend'?'每笔投入只登记一次。修改保留历史，作废须填写原因；各币种分开汇总。':'销售提交需求，设计安排人员和日期，成果经客户确认后交给工程接收。',data.can_write?button('center-new',kind==='spend'?'登记投入':'提交设计需求','','secondary'):'')+`<div class="ops-toolbar"><label>搜索<input id="center-search" type="search" value="${esc(centerQuery)}" placeholder="名称、项目或负责人"></label><label>状态<select id="center-status"><option value="">全部状态</option>${Object.entries(states).map(([key,label])=>`<option value="${key}"${key===centerStatus?' selected':''}>${label}</option>`).join('')}</select></label><span id="center-count" class="ops-result-count"></span></div><div id="center-records"></div>`;drawCenterRecords();
@@ -257,7 +258,7 @@ function renderAftersalesBoard(el,data){
 
 const AFTERSALES_ANALYSIS_MARKUP="<header class=\"rc-heading\"><div><h1>售后问题分析与改善</h1><p>找到反复出问题的设备，从根源减少下一次售后。</p></div><span class=\"rc-demo\">现有售后记录 · 等待专站接通</span></header><section class=\"rc-annual\" aria-label=\"年度问题总计\" id=\"ra-annual\"></section><div class=\"rc-scope\" id=\"ra-scope\"></div><div class=\"rc-grid\" style=\"margin-bottom:16px\"><section class=\"rc-panel\"><div class=\"rc-panelhead\"><h2>问题集中在哪里</h2><span class=\"rc-caption\">区域 × 设备款式 · 点击查看</span></div><div id=\"rc-matrix\" class=\"rc-matrix\"></div><p class=\"rc-focus\">单元格为问题记录数；“—”仅表示暂无问题记录，不能据此判断区域或款式更可靠。</p></section><section class=\"rc-panel\"><div class=\"rc-panelhead\"><h2>常见问题集中在哪些款</h2><span class=\"rc-caption\">按问题记录数排序</span></div><div id=\"rc-ranking\"></div></section></div>\n<section class=\"rc-panel\"><div class=\"rc-panelhead\"><h2>设备用了多久首次出问题</h2><span class=\"rc-caption\">每台故障设备只计首次故障</span></div><div id=\"rc-age-bands\" class=\"rc-age-bands\"></div><p id=\"rc-age-note\" class=\"rc-foot\"></p></section><section class=\"rc-panel\"><div class=\"rc-panelhead\"><h2>需要重点解决的问题</h2><span class=\"rc-caption\">优先关注维修后复发及跨设备同类问题</span></div><div class=\"rc-scroll\"><table><thead><tr><th>设备款式 / 区域</th><th>主要问题</th><th>问题 / 复发</th><th>已关联设备</th><th>首次故障用时</th><th>维修后复发间隔</th><th>根因进度</th><th>改善进度</th></tr></thead><tbody id=\"rc-cases\"></tbody></table></div><p class=\"rc-foot\">设备编号未关联时不推断台数；完整交付基数接通前不计算设备发生率。</p></section>\n<section class=\"rc-panel\" id=\"rc-case-detail\" aria-live=\"polite\"></section><details><summary>数据来源与统计说明</summary><div id=\"ra-notices\"></div></details><section class=\"rc-panel rr-center\" aria-label=\"售后分析报告\"><div class=\"rc-panelhead\"><div><h2>售后分析报告</h2><p class=\"rc-caption\">月度发现问题 · 季度检验改善 · 年度推动产品调整</p></div><span class=\"rc-tag rc-wait\">售后网站待接通</span></div><div class=\"rr-toolbar\"><div class=\"rr-period\" aria-label=\"报告类型\"><button type=\"button\" data-report-type=\"month\" aria-pressed=\"true\">月报</button><button type=\"button\" data-report-type=\"quarter\" aria-pressed=\"false\">季报</button><button type=\"button\" data-report-type=\"year\" aria-pressed=\"false\">年报</button></div><label class=\"rr-field\">报告期间<select id=\"rr-period\" aria-label=\"报告期间\"></select></label><button type=\"button\" id=\"rr-preview\">预览报告</button><button type=\"button\" class=\"rr-download\" disabled aria-describedby=\"rr-status\">下载 PPT</button></div><p id=\"rr-status\" class=\"rc-caption\">当前展示示例报告；接通售后网站后，下载可编辑 PPT。</p><div class=\"rr-preview\"><div class=\"rr-outline\" id=\"rr-outline\" aria-label=\"报告目录\"></div><div class=\"rr-stage\"><div class=\"rr-slide\" id=\"rr-slide\" aria-live=\"polite\"></div><div class=\"rr-pager\"><button type=\"button\" id=\"rr-prev\" aria-label=\"上一页报告\">上一页</button><span id=\"rr-page\"></span><button type=\"button\" id=\"rr-next\" aria-label=\"下一页报告\">下一页</button></div></div></div><p id=\"rr-cutoff\" class=\"rc-foot\"></p></section>";
 async function renderAftersalesAnalysis(el,generation){
- pageLoading(el,'售后问题分析与改善','正在汇总授权范围内的售后记录。');
+ pageLoading(el,'售后问题分析与改善','正在汇总授权范围内的售后记录。',['/api/centers/dashboard?'+new URLSearchParams({center:'aftersales',...(project?{project}:{})})]);
  try{const data=await api('/api/centers/dashboard?'+new URLSearchParams({center:'aftersales',...(project?{project}:{})}));if(generation!==renderGeneration)return;
  const analysis=data.aftersales.analysis,records=analysis.records,today=analysis.today;
  el.innerHTML='<div id="aftersales-analysis">'+AFTERSALES_ANALYSIS_MARKUP+'</div>';const root=el.firstElementChild,q=s=>root.querySelector(s);
@@ -347,7 +348,7 @@ function renderProcurementBoard(el,data){
  el.onclick=event=>{const b=event.target.closest('[data-pc-tab],[data-pc-order],[data-pc-close]');if(!b)return;if(b.dataset.pcTab){tab=b.dataset.pcTab;expanded=null}else if(b.hasAttribute('data-pc-close'))expanded=null;else{const id=b.dataset.pcOrder;expanded=tab==='orders'&&expanded===id?null:id;tab='orders'}draw()};draw();
 }
 async function renderProductionWorkshop(el,key,generation){
- pageLoading(el,'生产中心','正在读取车间登记进度。');
+ pageLoading(el,'生产中心','正在读取车间登记进度。',['/api/centers/dashboard?'+new URLSearchParams({center:'factory',...(project?{project}:{})})]);
  try{const data=await api('/api/centers/dashboard?'+new URLSearchParams({center:'factory',...(project?{project}:{})}));if(generation!==renderGeneration)return;renderProductionBoard(el,data.production,key);}
  catch(error){if(generation===renderGeneration)el.innerHTML=head('车间看板','读取失败，请刷新重试。')+'<p class="error">'+esc(error.message)+'</p>';}
 }

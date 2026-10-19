@@ -3,7 +3,7 @@ let connectionData=null;
 const onlineOrigin='https://yifunlife-erp.yifunlife.workers.dev';
 const externalLink=(url,label)=>`<a class="quiet" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
 async function renderConnections(el,generation){
- pageLoading(el,'连接资料');
+ pageLoading(el,'连接资料','',['/api/connections'+(project?'?project='+encodeURIComponent(project):'')]);
  try{
   const data=await api('/api/connections'+(project?'?project='+encodeURIComponent(project):''));if(generation!==renderGeneration)return;connectionData=data;
   const runs=data.runs.map(r=>`<tr><td>${r.source==='sales'?'亦玩销售工作台':'线上报价网站'}</td><td>${r.error?esc(r.error):r.last_success?'已同步':'等待首次同步'}</td><td>${esc(stamp(r.last_success))}</td><td>${r.count} ${r.source==='sales'?'位客户':'份报价'}</td></tr>`);

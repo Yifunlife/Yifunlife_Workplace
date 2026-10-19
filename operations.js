@@ -35,9 +35,10 @@ function sectionForView(page){
 }
 async function renderOperations(el,page,generation){
  const changed=opsPage!==page;opsPage=page;if(changed){opsQuery='';opsStatus='';}
- pageLoading(el,OPS_LABELS[page],OPS_DESCRIPTIONS[page]);
+ const dataPath='/api/ops/view?page='+opsKey(page)+(project&&!['leads','opportunities'].includes(page)?'&project='+encodeURIComponent(project):'');
+ pageLoading(el,OPS_LABELS[page],OPS_DESCRIPTIONS[page],['/api/ops/view?page=lookups',dataPath]);
  try{
-  const [lookup,result]=await Promise.all([api('/api/ops/view?page=lookups'),page==='migration'?Promise.resolve({items:[],can_write:can('admin')}):api('/api/ops/view?page='+opsKey(page)+(project&&!['leads','opportunities'].includes(page)?'&project='+encodeURIComponent(project):''))]);
+  const [lookup,result]=await Promise.all([api('/api/ops/view?page=lookups'),page==='migration'?Promise.resolve({items:[],can_write:can('admin')}):api(dataPath)]);
   if(generation!==renderGeneration)return;opsLookups=lookup;opsData=result;
   if(page==='migration'){renderImport(el);return;}
   let actions='';
