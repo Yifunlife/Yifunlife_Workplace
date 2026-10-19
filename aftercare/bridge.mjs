@@ -4,7 +4,7 @@ import {handleCustomerIntake} from './lib/customer-intake.mjs';
 let raw='';for await(const chunk of process.stdin)raw+=chunk;
 const input=JSON.parse(raw),sqlite=new DatabaseSync(':memory:'),writes=[],objects=[];
 for(const table of input.tables){sqlite.exec(table.sql);if(table.rows.length){const stmt=sqlite.prepare(`INSERT INTO "${table.name}" (${table.columns.map(x=>'"'+x+'"').join(',')}) VALUES (${table.columns.map(()=>'?').join(',')})`);for(const row of table.rows)stmt.run(...row);}}
-globalThis.__aftercareUser=input.user;
+globalThis.__aftercareUser=input.user;globalThis.__aftercareDepartmentUpload=!!input.departmentUpload;
 class Statement{
  constructor(sql,args=[]){this.sql=sql;this.args=args;}
  bind(...args){return new Statement(this.sql,args)}

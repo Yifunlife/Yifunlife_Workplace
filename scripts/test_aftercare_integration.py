@@ -89,3 +89,41 @@ with database.connect() as db:
  ticket=core.need(db,'service_tickets','QA-WORK-1');assert aftersales_dashboard.phase(json.loads(ticket['payload']))=='生产采购'
  assert db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]==before_movements
 print('PASS: bidirectional legacy cockpit/workflow sync, precise workflow→six-stage dashboard projection and unchanged stock movements.')
+# Original detailed internal pages persist independently of other group centers.
+import aftercare_internal
+from datetime import datetime
+from zoneinfo import ZoneInfo
+with database.connect() as db:
+ before_stock=db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]
+ work=db.execute('SELECT * FROM af2_customer_work_items WHERE id=?',('QA-WORK-1',)).fetchone();d=json.loads(work['payload']);d['stage']='现场处理'
+ db.execute('UPDATE af2_customer_work_items SET payload=?,version=version+1 WHERE id=?',(json.dumps(d,ensure_ascii=False),'QA-WORK-1'));aftercare.sync_ticket(db,'QA-WORK-1',admin['id'])
+ request_id=work['request_id']
+ # A real file uploaded through the protected internal route.
+ boundary='internal-'+uuid.uuid4().hex
+ raw=(f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="internal.png"\r\nContent-Type: image/png\r\n\r\n').encode()+png+f'\r\n--{boundary}--\r\n'.encode()
+ code,h,b=aftercare.handle(db,admin,'/api/aftercare/internal-files/QA-WORK-1','POST',raw,{'content-type':'multipart/form-data; boundary='+boundary},'http://127.0.0.1:8990')
+ response=json.loads(b);assert code==200,(code,response);file=response['files'][0]
+installation={'status':'待排期','items':[{'id':'i1','state':'待处理','note':''}],'photos':{},'signature':{'strokes':[]},'install':True}
+body={'kind':'installation','id':'QA-WORK-1','ticketId':'QA-WORK-1','version':0,'value':installation}
+code,result=call(admin,'internal-pages',body);assert code==200,(code,result)
+try:call(admin,'internal-pages',body);raise AssertionError('internal stale write allowed')
+except core.Problem as e:assert e.status==409
+try:call(other,'internal-pages',{**body,'version':1});raise AssertionError('internal scope bypass')
+except core.Problem as e:assert e.status==404
+installation.update(status='售后结束',actual='2026-10-19',notes='完成检查',finished=True,presence='present',signer='客户',items=[{'id':'i1','state':'已完成','note':'检查无异常'}],photos={'i1':[file]},signature={'strokes':[[[.1,.1],[.4,.6]]]})
+code,result=call(admin,'internal-pages',{**body,'version':1});assert code==200,(code,result)
+code,result=call(admin,'internal-pages');stored=next(r for r in result['records'] if r['kind']=='installation');assert stored['value']['signature']==installation['signature'];assert stored['value']['photos']['i1'][0]['url']==file['url']
+assert next(i for i in result['items'] if i['id']=='QA-WORK-1')['stage']=='客户验收'
+cost={'cat':'物流','name':'回传运费','amount':12300,'paid':0,'payer':'公司','date':datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(),'review':'待核对','person':'测试售后','source':'QA-COST/1','voucherUrl':file['url'],'voucher':'internal.png'}
+body={'kind':'finance','id':'QA-COST-1','ticketId':'QA-WORK-1','version':0,'value':cost}
+code,result=call(specialist,'internal-pages',body);assert code==200,(code,result)
+cost['review']='已核对'
+try:call(specialist,'internal-pages',{**body,'version':1});raise AssertionError('specialist approved cost')
+except core.Problem as e:assert e.status==403
+code,result=call(admin,'internal-pages',{**body,'version':1});assert code==200,(code,result)
+cost.update(paid=2300,paymentHistory=[{'amount':2300,'date':cost['date'],'reference':'QA-BANK-1'}])
+code,result=call(admin,'internal-pages',{**body,'version':2});assert code==200,(code,result)
+with database.connect() as db:
+ assert db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]==before_stock
+ stored=json.loads(db.execute("SELECT payload FROM af2_department_records WHERE kind='finance' AND id='QA-COST-1'").fetchone()[0]);assert stored['paid']==2300 and stored['paymentHistory'][0]['reference']=='QA-BANK-1'
+print('PASS: original internal installation photos/signatures and completion, finance vouchers/review/payment history, version conflict and project/role isolation; group stock unchanged.')

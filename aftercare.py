@@ -29,7 +29,11 @@ def bootstrap(db,user):
     if not user:raise core.Problem('请先登录统一工作平台',401)
     p=projects(db,user)
     team=[{'id':r['id'],'name':r['name'],'role':role(db,dict(r))} for r in db.execute("SELECT id,name,role,status,email FROM employees WHERE status='active'")]
-    context={'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user)}
+    if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
+    seed_legacy(db)
+    import aftercare_internal
+    internal=aftercare_internal.context(db,user)
+    context={'internal':internal,'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user)}
     return ('window.__AFTERCARE_CONTEXT__='+json.dumps(context,ensure_ascii=False).replace('<','\\u003c')+';window.__EMPLOYEE__=window.__AFTERCARE_CONTEXT__.user;').encode()
 
 def tables_exist(db):return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='af2_customer_work_items'").fetchone())
@@ -189,6 +193,17 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
         try:j=json.loads(body)
         except ValueError:raise core.Problem('提交格式错误')
         if not isinstance(j,dict):raise core.Problem('提交格式错误')
+    if route=='internal-pages':
+        import aftercare_internal
+        result=aftercare_internal.context(db,user) if method=='GET' else aftercare_internal.save(db,user,j or {})
+        return 200,{'content-type':'application/json'},json.dumps(result,ensure_ascii=False).encode()
+    department_upload=route.startswith('internal-files/')
+    if department_upload:
+        wid=route.removeprefix('internal-files/')
+        access.require(db,user,'service_tickets',wid)
+        if role(db,user) not in ('管理员','财务人员','安装人员','售后专员','仓库人员','采购人员','工程人员','生产人员'):raise core.Problem('没有此项上传权限',403)
+        path='/api/aftercare/work-items/'+wid+'/files'
+        route='work-items/'+wid+'/files'
     if route=='work-items' and method=='POST':
         result=internal_save(db,user,j or {})
         if result:return 200,{'content-type':'application/json'},json.dumps(result).encode()
@@ -231,7 +246,7 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
             except FileNotFoundError:pass
     node=shutil.which('node') or os.environ.get('YIFUN_NODE')
     if not node:raise core.Problem('售后运行环境尚未准备好',503)
-    input={'tables':tables,'user':None if public else profile(db,user),'url':origin+path.replace('/api/aftercare/','/api/customer/',1),'method':method,'headers':headers,'body':base64.b64encode(body).decode(),'objects':objects}
+    input={'departmentUpload':department_upload,'tables':tables,'user':None if public else profile(db,user),'url':origin+path.replace('/api/aftercare/','/api/customer/',1),'method':method,'headers':headers,'body':base64.b64encode(body).decode(),'objects':objects}
     result=subprocess.run([node,str(HOME/'bridge.mjs')],input=json.dumps(input,ensure_ascii=False).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=45)
     if result.returncode:raise core.Problem('售后处理服务暂时不可用，记录未保存',503)
     output=json.loads(result.stdout)
