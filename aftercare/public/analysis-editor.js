@@ -1,7 +1,7 @@
 (()=>{
  const root=document.getElementById('yw-after-sales');if(!root)return;
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const fields=[['model','设备款式'],['region','问题发生区域'],['deviceId','设备编号 / 序列号'],['faultDate','故障发生日期','date'],['activationDate','投入使用日期','date'],['lastRepairCompletedDate','上次维修完成日期','date'],['problemPart','问题部位'],['rootCause','根因分析'],['rootCauseEvidence','根因验证依据'],['correctiveAction','改善措施'],['validationResult','改善验证结果']];
+ const fields=[['model','设备款式'],['problemType','常见问题类型（如异响、卡顿、断裂）'],['region','问题发生区域'],['deviceId','设备编号 / 序列号'],['faultDate','故障发生日期','date'],['activationDate','投入使用日期','date'],['lastRepairCompletedDate','上次维修完成日期','date'],['problemPart','问题部位'],['rootCause','根因分析'],['rootCauseEvidence','根因验证依据'],['correctiveAction','改善措施'],['validationResult','改善验证结果']];
  let items=new Map(),loading=false;
  async function load(){if(loading)return;loading=true;try{const r=await fetch('/api/aftercare/work-items');const j=await r.json();if(r.ok)items=new Map(j.items.map(d=>[d.id,d]));}finally{loading=false;}}
  root.addEventListener('click',async e=>{

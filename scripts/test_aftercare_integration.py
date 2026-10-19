@@ -22,7 +22,7 @@ def call(u,path,body=None):
   try:result=json.loads(b)
   except:result=b
   return code,result
-record={'id':'QA-WORK-1','projectId':'p1','project':'项目1','customer':'客户1','product':'旋转设备H02','issue':'运行异响','reported':'2026-10-19','delivered':'2026-07-01','faultDate':'2026-10-18','owner':'测试售后','stage':'登记草稿','submitted':False,'attachments':[],'batchId':'QA-BATCH-1'}
+record={'id':'QA-WORK-1','projectId':'p1','project':'项目1','customer':'客户1','product':'旋转设备H02','issue':'运行异响','problemType':'机械异响','reported':'2026-10-19','delivered':'2026-07-01','faultDate':'2026-10-18','owner':'测试售后','stage':'登记草稿','submitted':False,'attachments':[],'batchId':'QA-BATCH-1'}
 code,result=call(specialist,'work-items',{'items':[record]});assert code==200,(code,result);assert result['versions'][0]['version']==1
 code,result=call(specialist,'work-items');assert code==200,(code,result);assert len(result['items'])==1;record=result['items'][0]
 assert call(other,'work-items')[1]['items']==[]
@@ -31,7 +31,7 @@ record.update(stage='审核',submitted=True)
 code,result=call(specialist,'work-items',{'items':[record]});assert code==200,(code,result)
 with database.connect() as db:
  r=core.need(db,'service_tickets',record['id']);assert r['project_id']=='p1';assert json.loads(r['payload'])['faultDate']=='2026-10-18'
- report=aftersales_analysis.report(db,specialist,{'p1':core.need(db,'projects','p1')},'2026-10-19');assert len(report['records'])==1
+ report=aftersales_analysis.report(db,specialist,{'p1':core.need(db,'projects','p1')},'2026-10-19');assert len(report['records'])==1;assert report['records'][0]['problem']=='机械异响'
 code,result=call(specialist,'work-items',{'items':[record]});assert code==409,(code,result)
 try:call(other,'work-items',{'items':[{**record,'cloudVersion':2}]});raise AssertionError('scope bypass')
 except core.Problem as e:assert e.status==404
