@@ -204,6 +204,15 @@ async function action(name,id){
 }
 // Shared reminder surface lives outside #content so retained native frames keep it visible.
 let reminderRequest=0,reminderData=null,reminderScope='',reminderFilter='all';
+let reminderFoldState={user:null,day:null,collapsed:false};
+function reminderCollapsed(){
+ const user=session?.user?.id,day=reminderData?.today;
+ if(reminderFoldState.user!==user||reminderFoldState.day!==day){
+  reminderFoldState={user,day,collapsed:false};
+  try{const saved=JSON.parse(localStorage.getItem('yifun:reminders:fold:'+user));if(saved?.day===day)reminderFoldState.collapsed=saved.collapsed===true;}catch{}
+ }
+ return reminderFoldState.collapsed;
+}
 let workChannel=null;
 try{workChannel=new BroadcastChannel('yifun-work-changes');workChannel.onmessage=()=>refreshWorkReminders();}catch{}
 function broadcastWorkChange(){try{workChannel?.postMessage({changed:true});}catch{}}
@@ -248,6 +257,7 @@ async function refreshWorkReminders(){
 }
 function drawWorkReminders(){
  const el=$('#work-reminders'),data=reminderData;if(!el||!data)return;
+ const collapsed=reminderCollapsed();
  const context=reminderContext(),n=data.counts;
  const label=context.center?CENTER_NAMES[context.center]||'本页面':'全部中心';
  const due=r=>r.urgency==='overdue'?`已逾期 ${Math.abs(r.days)} 天`:r.urgency==='today'?'今天到期':r.due_date||'待处理';
@@ -255,9 +265,19 @@ function drawWorkReminders(){
  const mine=data.items.filter(r=>reminderFilter==='all'||r.urgency===reminderFilter);
  const list=(rows,emptyText)=>rows.length?`<ul class="work-reminder-list">${rows.slice(0,3).map(row).join('')}</ul>${rows.length>3?`<details class="work-reminder-more"><summary>展开其余 ${rows.length-3} 件</summary><ul class="work-reminder-list">${rows.slice(3).map(row).join('')}</ul></details>`:''}`:`<p class="work-reminder-empty">${emptyText}</p>`;
  el.innerHTML=`<div class="work-reminders-head"><div><h2>今日工作提醒 <span>${esc(label)}${context.project?' · 当前项目':''}</span></h2><p>你有 <strong>${n.total}</strong> 件待办 · <span class="${n.overdue?'is-overdue':''}">${n.overdue} 件逾期</span> · ${n.today} 件今天到期${data.manager?' · '+n.attention+' 件重点关注':''}</p></div><div class="work-reminders-actions">${button('work-reminder-all','我的全部待办','','secondary')}${button('work-reminder-refresh','刷新','','quiet')}</div></div><div class="work-reminders-columns"><section><div class="work-reminders-label"><h3>我的待办</h3><div class="work-reminders-filters" aria-label="待办优先级">${[['all','全部'],['overdue','逾期'],['today','今日']].map(([id,label])=>`<button type="button" data-action="work-reminder-filter" data-id="${id}" aria-pressed="${reminderFilter===id}">${label}</button>`).join('')}</div></div>${list(mine,'当前范围没有'+(reminderFilter==='overdue'?'逾期':reminderFilter==='today'?'今日到期':'分配给你的')+'事项')}</section><section><div class="work-reminders-label"><h3>${data.manager?'集团重点提醒':'本中心协同提醒'}</h3><span>${data.attention.length} 件</span></div>${list(data.attention,data.manager?'当前范围暂无已记录的重点异常':context.center?'当前中心暂无需协同的异常事项':'进入各业务中心查看协同事项')}</section></div><p class="work-reminders-foot">${esc(data.today)} · 按账号与项目权限汇总 · 处理结果自动同步${can('supplier')?'':' · 姓名记录待核对账号归属'}</p>`;
+ const details=document.createElement('div');details.id='work-reminders-body';details.hidden=collapsed;
+ details.append(el.querySelector('.work-reminders-columns'),el.querySelector('.work-reminders-foot'));el.append(details);
+ const toggle=document.createElement('button');toggle.type='button';toggle.className='secondary';toggle.dataset.action='work-reminder-toggle';toggle.textContent=collapsed?'展开':'收起';toggle.setAttribute('aria-expanded',String(!collapsed));toggle.setAttribute('aria-controls',details.id);
+ el.querySelector('.work-reminders-actions').prepend(toggle);
 }
 async function reminderAction(name,id){
  if(!name.startsWith('work-reminder-'))return false;
+ if(name==='work-reminder-toggle'){
+  if(!reminderData)return true;
+  const collapsed=!reminderCollapsed();reminderFoldState.collapsed=collapsed;
+  try{localStorage.setItem('yifun:reminders:fold:'+session.user.id,JSON.stringify({day:reminderData.today,collapsed}));}catch{}
+  drawWorkReminders();$('#work-reminders [data-action=work-reminder-toggle]')?.focus();return true;
+ }
  if(name==='work-reminder-refresh'){await refreshWorkReminders();return true;}
  if(name==='work-reminder-filter'){reminderFilter=id;drawWorkReminders();return true;}
  if(name==='work-reminder-all'){
@@ -284,6 +304,7 @@ async function reminderAction(name,id){
 setInterval(()=>{if(document.visibilityState==='visible'&&!$('#dialog')?.open)refreshWorkReminders();},30000);
 window.addEventListener('focus',()=>refreshWorkReminders());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshWorkReminders();});
+window.addEventListener('storage',event=>{if(event.key==='yifun:reminders:fold:'+session?.user?.id){reminderFoldState.day=null;drawWorkReminders();}});
 
 start().catch(err=>{$('#app').innerHTML=empty('暂时无法连接工作平台',location.protocol==='https:'?'请稍后刷新页面，或检查站点登录状态。':'请确认本地启动窗口仍在运行，再刷新页面。');notify(err.message);});
 
