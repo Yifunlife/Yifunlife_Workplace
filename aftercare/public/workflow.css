@@ -1105,3 +1105,13 @@ body{margin:0;background:#fff;font-family:Arial,"Microsoft YaHei",sans-serif}
 #yifun-hub aside[aria-label="集团导航"]{display:none!important}
 .aftercare-analysis{margin:12px 0;padding:12px;border:1px solid #dfe7f2;border-radius:8px;background:#f8faff}.aftercare-analysis label{display:grid;gap:5px}.aftercare-analysis .fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.aftercare-analysis input,.aftercare-analysis select,.aftercare-analysis textarea{width:100%;min-width:0;box-sizing:border-box}
 @media(max-width:760px){.aftercare-project-bar label{display:grid;max-width:100%}.aftercare-analysis .fields{grid-template-columns:1fr}}
+/* Requested placement: original internal navigation across the top. */
+@media(min-width:761px){
+ #yw-after-sales>.shell{display:block!important}
+ #yw-after-sales>.shell>nav{position:sticky;top:0;z-index:10;display:flex!important;flex-direction:row;align-items:center;gap:4px;width:auto!important;max-height:none!important;padding:8px 14px!important;overflow-x:auto;border-right:0;border-bottom:1px solid #dfe7f2;background:#fff}
+ #yw-after-sales>.shell>nav:before{display:none!important}
+ #yw-after-sales>.shell>nav button{flex:0 0 auto;display:flex;align-items:center;gap:7px;width:auto!important;min-height:42px;margin:0!important;padding:10px 12px!important;font-size:14px!important;border-radius:7px;border-left:0!important;border-bottom:3px solid transparent!important;white-space:nowrap}
+ #yw-after-sales>.shell>nav button.active{color:#285a95;background:#eaf1fc;border-bottom-color:#efc000!important;box-shadow:none}
+ #yw-after-sales>.shell>nav button[hidden]{display:none!important}
+ #yw-after-sales>.shell>main{padding:24px!important}
+}
