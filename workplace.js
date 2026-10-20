@@ -87,7 +87,7 @@ async function start(){
 let routeRecord='';
 function workplacePageUrl(){
  if(view==='dashboard'){dashboardUrl();return;}
- const params=new URLSearchParams({view});if(project)params.set('project',project);if(routeRecord)params.set('record',routeRecord);
+ const params=new URLSearchParams({view});if(project)params.set('project',project);if(routeRecord)params.set('record',routeRecord);if(typeof aftercareSharedTaskId!=='undefined'&&aftercareSharedTaskId===routeRecord&&routeRecord)params.set('sharedTask','1');
  history.replaceState(null,'','/?'+params.toString());
 }
 function login(){const setup=session.needsSetup;$('#app').innerHTML=`<main class="login"><section class="login-brand"><img src="/workplace-logo.png" width="1431" height="340" alt="YIFUN LIFE 亦玩集团"><div><h1>同一个项目，<br>每一步都有记录。</h1><p>报价 · 采购 · 仓库 · 售后</p></div><small>Workplace · 完整页面版</small></section><form class="login-form" id="login-form"><h2>${setup?(session.cloud?'设置我的账号':'建立管理员账号'):'登录工作平台'}</h2><p>${session.cloud?(setup?'设置你自己的姓名和密码。':'使用邮箱或工号和密码登录。'):(setup?'首次使用先建立你的管理账号，再为各岗位创建员工账号。':'使用邮箱或工号和密码进入所属工作中心。')}</p>${setup?input('name',session.cloud?'姓名':'管理员姓名'):''}${setup?input('email','绑定邮箱','email',session.verified_email||'',true,'autocomplete="email"'+(session.verified_email?' readonly':'')):''}${input('username',setup?'工号（选填）':'邮箱或工号','text','',!setup,'autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254"')}${input('password','密码','password','',true,`minlength="10" maxlength="256" autocomplete="${setup?'new-password':'current-password'}"`)}<p class="error" id="login-error" role="alert"></p><button>${setup?'建立账号并进入':'登录'}</button>${session.cloud?'<p><a href="/password-recovery">找回账号／密码</a></p>':''}<small>${session.cloud?'共享测试站点 · 模拟数据':'原有三个系统继续独立运行。此版本使用自己的数据。'}</small></form></main>`;$('#login-form').addEventListener('submit',async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;try{await api(`/api/auth/${setup?'setup':'login'}`,Object.fromEntries(new FormData(e.target)));await start();}catch(err){$('#login-error').textContent=err.message;}finally{b.disabled=false;}});}
@@ -97,7 +97,7 @@ function shell(){
 }
 async function refresh(){session=await api('/api/auth/session');if(!session.authenticated){login();return;}project=session.project_id||'';if(!can('supplier','finance'))state=await api('/api/view/overview'+(project?`?project=${encodeURIComponent(project)}`:''));else state={projects:[],products:[],baselines:[],customers:[]};await render();}
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
-async function render(){if(view==='aftersales')view='center-aftersales-workflow';workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('.shell').classList.toggle('aftersales-original-view',view==='center-aftersales-workflow');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
+async function render(){if(view==='aftersales'||view==='center-aftersales')view='center-aftersales-workflow';workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('.shell').classList.toggle('aftersales-original-view',view==='center-aftersales-workflow');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
  $('#sales-center-label').hidden=section?.id!=='crm';
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));
@@ -301,7 +301,7 @@ async function reminderAction(name,id){
   const allowed=new Set(['tasks',...workReminderRoutes().map(r=>r[0]),...workplaceCenters().flatMap(c=>c.pages.map(p=>p[0]))]);
   // Native task/install/issue views are valid record drill-down destinations.
   if(!allowed.has(row.page)){notify('请联系对应中心负责人处理');return true;}
-  view=row.page;moduleLink=row.module_link||'';routeRecord=row.record_id;
+  view=row.page;moduleLink=row.module_link||'';routeRecord=row.record_id;if(row.source==='service')aftercareSharedTaskId=routeRecord;
   // Clear a previous project's context for global leads/stock orders as well.
   if(!can('supplier'))await chooseProject(row.project_id||'');else await render();
   if(row.source==='release'&&can('ceo')&&state.releases.some(r=>r.id===row.record_id&&r.status==='pending'))await action('decide-release',row.record_id);

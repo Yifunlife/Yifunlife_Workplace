@@ -58,6 +58,14 @@ def report(db,projects,end):
         references.add(r['reference'])
         records.append({'id':r['id'],'source':'aftersales_expenses','ticket_id':r['ticket_id'],'project_id':r['project_id'],'project_name':projects[r['project_id']]['name'],
             'category':r['category'],'category_label':CATEGORIES[r['category']],'minor':r['amount_minor'],'currency':r['currency'],'date':r['record_date'],'reference':r['reference'],'note':r['note']})
+    # Approved original-workspace expenses remain one record, projected into group reports.
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='af2_department_records'").fetchone():
+        for row in db.execute("SELECT * FROM af2_department_records WHERE kind='finance'"):
+            d=json.loads(row['payload']);reference=d.get('source')
+            if row['project_id'] not in projects or d.get('payer')!='公司' or d.get('review')!='已核对' or not start<=str(d.get('date',''))<=cutoff or reference in references:continue
+            references.add(reference)
+            category={'采购':'parts','生产':'parts','物流':'freight','人工':'labor','吃':'travel','住':'travel','行':'travel'}.get(d.get('cat'),'other')
+            records.append({'id':row['id'],'source':'af2_department_records','ticket_id':row['ticket_id'],'project_id':row['project_id'],'project_name':projects[row['project_id']]['name'],'category':category,'category_label':CATEGORIES[category],'minor':d['amount'],'currency':'CNY','date':d['date'],'reference':reference,'note':d.get('name',''),'paid_minor':d.get('paid',0)})
     annual=defaultdict(int);monthly=defaultdict(int)
     for r in records:
         annual[r['currency']]+=r['minor']

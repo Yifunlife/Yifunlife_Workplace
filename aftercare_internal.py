@@ -61,7 +61,8 @@ def save(db,user,b):
     if b.get('version')!=version:raise core.Problem('此页资料已被其他同事更新，请刷新后重试',409)
     previous=json.loads(old['payload']) if old else None
     if old and (old['ticket_id']!=tid or old['project_id']!=ticket['project_id']):raise core.Problem('不能更改记录归属',403)
-    value={**value,'ticketId':tid,'projectId':ticket['project_id']}
+    import aftercare_sync
+    value=aftercare_sync.normalize(db,{**value,'ticketId':tid,'projectId':ticket['project_id']},previous)
     if kind=='installation':
         if role not in ('管理员','安装人员','售后专员'):raise core.Problem('当前岗位不能修改售后安装资料',403)
         if rid!=tid:raise core.Problem('安装任务编号不正确')

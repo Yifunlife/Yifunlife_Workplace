@@ -174,3 +174,5 @@
 .shell.aftersales-original-view #work-reminders,.shell.aftersales-original-view .topbar{display:none}
 #content.aftersales-original-workspace{padding:0!important}
 .aftersales-original-workspace .aftercare-workflow-frame{border-radius:0;min-height:calc(100dvh - 72px);background:#fff}
+
+.shell.aftersales-original-view #center-sections{display:none!important}

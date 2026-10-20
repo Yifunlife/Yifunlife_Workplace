@@ -1115,3 +1115,5 @@ body{margin:0;background:#fff;font-family:Arial,"Microsoft YaHei",sans-serif}
  #yw-after-sales>.shell>nav button[hidden]{display:none!important}
  #yw-after-sales>.shell>main{padding:24px!important}
 }
+
+@media(min-width:761px){#yw-after-sales>.shell>nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px 8px;overflow:visible}#yw-after-sales>.shell>nav button{width:100%!important;justify-content:center;white-space:normal}}

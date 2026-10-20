@@ -238,6 +238,8 @@ def save_design(db,user,p):
 
 def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     require_center(db,user,center)
+    import aftercare_sync
+    aftercare_sync.refresh(db)
     today=datetime.now(REPORTING_ZONE).date().isoformat()
     start=c.day(start) if start else today[:8]+'01';end=c.day(end) if end else today
     if start>end:raise c.Problem('开始日期不能晚于结束日期')
@@ -418,4 +420,6 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         target={'definition':{'metric':key,'label':label,'kind':kind},'record':target,'actual':next((m['value'] for m in metrics if m['key']==key),None)}
     rows.sort(key=lambda r:(r['due'] or '9999',r['title']))
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
-    return {'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    import aftercare_sync
+    shared_tasks=aftercare_sync.tasks(db,user,center,project) if center in ('engineering','factory','procurement','stock','aftersales') else []
+    return {'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}

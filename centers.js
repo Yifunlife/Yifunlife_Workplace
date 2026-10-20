@@ -1,3 +1,4 @@
+let aftercareSharedTaskId=new URLSearchParams(location.search).get('sharedTask')==='1'?new URLSearchParams(location.search).get('record')||'':'';
 'use strict';
 const CENTER_NAMES={marketing:'运营中心',crm:'销售中心',design:'设计中心',projects:'交付进度',quote:'核算中心',engineering:'工程中心',procurement:'采购中心',stock:'仓库中心',aftersales:'售后中心',finance:'财务中心',factory:'生产中心'};
 const CENTER_DESCRIPTIONS={marketing:'记录渠道投入，跟踪线索质量与销售承接。',crm:'围绕客户、商机、跟进和正式订单推进业务。',design:'从需求、排期、成果确认到工程接收。',projects:'同一项目下查看各部门任务与交付记录。',quote:'核对报价进展，继续使用原有产品库与报价流程。',engineering:'核对执行规格、下达工程单，跟进安装与现场问题。',procurement:'从采购需求到供应商确认、发货和验收。',stock:'共用库存账本，区分在库、占用、待检和可用数量。',aftersales:'追踪客户问题、设备保修与退换返修。',finance:'按币种核对收款与结算，沿用财务开放状态。',factory:'查看工程分派的生产需求与交接记录。'};
@@ -23,7 +24,7 @@ async function renderCenter(el,id,generation){
  const period=centerPeriod(id),query=new URLSearchParams({center:id,...period,...(project&&!['marketing','crm','design','quote'].includes(id)?{project}:{})});
  pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id],['/api/centers/dashboard?'+query]);
  try{
-  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;if(id==='factory'&&data.production){renderProductionBoard(el,data.production);return;}if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;const showSharedTasks=()=>{if(generation===renderGeneration)renderSharedAftersalesTasks(el,data.aftersales_tasks||[]);};queueMicrotask(showSharedTasks);if(id==='factory'&&data.production){renderProductionBoard(el,data.production);return;}if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -372,7 +373,14 @@ function renderProductionBoard(el,report,key='all'){
 }
 
 function renderAftersalesWorkflow(el){
- el.classList.add('aftersales-original-workspace');el.innerHTML='<iframe title="售后工作台" src="/aftercare/workspace?record='+encodeURIComponent(routeRecord||'')+'&project='+encodeURIComponent(project||'')+'" class="aftercare-workflow-frame"></iframe>';
+ el.classList.add('aftersales-original-workspace');el.innerHTML='<iframe title="售后工作台" src="/aftercare/workspace?record='+encodeURIComponent(routeRecord||'')+'&project='+encodeURIComponent(project||'')+(aftercareSharedTaskId===routeRecord&&routeRecord?'&mode=task':'')+'" class="aftercare-workflow-frame"></iframe>';
 }
 
 window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='yifun-aftercare-height'||!Number.isFinite(event.data.height))return;const frame=document.querySelector('.aftercare-workflow-frame');if(frame&&event.source===frame.contentWindow)frame.style.height=Math.max(600,Math.min(20000,event.data.height))+'px';});
+
+function renderSharedAftersalesTasks(el,rows){
+ if(!rows.length)return;
+ el.insertAdjacentHTML('beforeend',panel('售后协同任务 · '+rows.length+' 条',`<p>与售后工作台共用同一工单，处理结果、负责人和进度同步显示。</p><div class="department-table-wrap"><table><thead><tr><th>项目／工单</th><th>设备／问题</th><th>当前环节</th><th>负责人</th><th>计划完成</th><th>操作</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.project)}<small>${esc(r.work_no)}</small></td><td>${esc(r.product)}<small>${esc(r.issue)}</small></td><td>${esc(r.stage)}</td><td>${esc(r.owner)}</td><td>${esc(r.due||'待排期')}</td><td><button type="button" data-af-shared="${esc(r.id)}" data-af-project="${esc(r.project_id)}">${r.can_handle?'查看／处理售后任务':'查看售后进度'}</button></td></tr>`).join('')}</tbody></table></div>`));
+}
+
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-af-shared]');if(!b)return;aftercareSharedTaskId=b.dataset.afShared;routeRecord=aftercareSharedTaskId;view='center-aftersales-workflow';await chooseProject(b.dataset.afProject);});

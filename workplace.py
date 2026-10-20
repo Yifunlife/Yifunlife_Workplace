@@ -34,6 +34,8 @@ def init():
         login_recovery_maintenance.issue(db)
         import shared_demo
         shared_demo.seed(db)
+        import aftercare_shared_demo
+        aftercare_shared_demo.seed(db)
     BRIDGE_PATH.parent.mkdir(parents=True,exist_ok=True)
     if not BRIDGE_PATH.exists():
         BRIDGE_PATH.write_text(secrets.token_urlsafe(48));BRIDGE_PATH.chmod(0o600)

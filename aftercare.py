@@ -7,11 +7,12 @@ import base64,hashlib,json,os,re,shutil,subprocess,time,uuid
 from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 import core,project_access as access,runtime_config,object_storage
+import aftercare_sync
 ROOT=Path(__file__).resolve().parent
 HOME=ROOT/'aftercare'
 TABLES=('customer_profiles','customer_stores','customer_invites','customer_requests','customer_work_items','customer_files','customer_rate_limits','account_audit')
 ROLES={'admin':'管理员','ceo':'负责人','aftersales':'售后专员','engineering':'工程人员','purchasing':'采购人员','warehouse':'仓库人员','installation':'安装人员','finance':'财务人员','sales':'负责人'}
-TRANSITIONS={'登记草稿':{'登记草稿','审核'},'审核':{'审核','部门处理','工程下单','生产采购','采购','生产','现场处理','发货物流','客户验收'},'部门处理':{'部门处理','工程下单','生产采购','采购','生产','现场处理','发货物流','客户验收','审核'},'工程下单':{'工程下单','生产采购','采购','生产','现场处理','发货物流','审核'},'生产采购':{'生产采购','品质检验','发货物流','审核'},'采购':{'采购','品质检验','发货物流','审核'},'生产':{'生产','品质检验','发货物流','审核'},'品质检验':{'品质检验','发货物流','生产采购','审核'},'发货物流':{'发货物流','现场处理','客户验收','审核'},'现场处理':{'现场处理','客户验收','审核'},'客户验收':{'客户验收','负责人复核','现场处理'},'负责人复核':{'负责人复核','已关闭','客户验收'},'已关闭':{'已关闭'}}
+TRANSITIONS={'登记草稿':{'登记草稿','审核'},'审核':{'审核','部门处理','工程下单','生产采购','采购','生产','现场处理','发货物流','客户验收'},'部门处理':{'部门处理','工程下单','生产采购','采购','生产','现场处理','发货物流','客户验收','审核'},'工程下单':{'工程下单','生产采购','采购','生产','现场处理','发货物流','审核'},'生产采购':{'生产采购','品质检验','发货物流','审核'},'采购':{'采购','生产采购','品质检验','发货物流','审核'},'生产':{'生产','品质检验','发货物流','审核'},'品质检验':{'品质检验','发货物流','生产采购','审核'},'发货物流':{'发货物流','现场处理','客户验收','审核'},'现场处理':{'现场处理','客户验收','审核'},'客户验收':{'客户验收','负责人复核','现场处理'},'负责人复核':{'负责人复核','已关闭','客户验收'},'已关闭':{'已关闭'}}
 
 def role(db,user):
     if user['role']=='engineering' and db.execute("SELECT 1 FROM center_members WHERE employee_id=? AND center='factory'",(user['id'],)).fetchone():return '生产人员'
@@ -31,9 +32,10 @@ def bootstrap(db,user):
     team=[{'id':r['id'],'name':r['name'],'role':role(db,dict(r))} for r in db.execute("SELECT id,name,role,status,email FROM employees WHERE status='active'")]
     if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
     seed_legacy(db)
+    aftercare_sync.refresh(db)
     import aftercare_internal
     internal=aftercare_internal.context(db,user)
-    context={'internal':internal,'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user)}
+    context={'masters':aftercare_sync.masters(db,user),'internal':internal,'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user)}
     return ('window.__AFTERCARE_CONTEXT__='+json.dumps(context,ensure_ascii=False).replace('<','\\u003c')+';window.__EMPLOYEE__=window.__AFTERCARE_CONTEXT__.user;').encode()
 
 def tables_exist(db):return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='af2_customer_work_items'").fetchone())
@@ -46,6 +48,7 @@ def seed_legacy(db):
             link=db.execute('SELECT core_version FROM af2_ticket_links WHERE ticket_id=?',(r['id'],)).fetchone()
             if link and link['core_version']==r['version']:continue
             p=json.loads(r['payload']);d=json.loads(existing['payload'])
+            if p.get('ownerId'):d['ownerId']=p['ownerId']
             import aftersales_dashboard
             incoming=aftersales_dashboard.phase(p)
             previous={'采购':'生产采购','生产':'生产采购','品质检验':'生产采购','部门处理':'现场处理','负责人复核':'客户验收'}.get(d.get('stage'),d.get('stage'))
@@ -161,10 +164,12 @@ def sync_ticket(db,wid,actor):
     d=json.loads(raw['payload']);pid=d.get('projectId') or raw['market_id']
     if not db.execute('SELECT 1 FROM projects WHERE id=?',(pid,)).fetchone():return
     d['projectId']=pid
+    d=aftercare_sync.normalize(db,d)
+    db.execute('UPDATE af2_customer_work_items SET payload=? WHERE id=?',(json.dumps(d,ensure_ascii=False),wid))
     if d.get('submitted') is False or d.get('stage')=='登记草稿':return
     row=db.execute('SELECT * FROM service_tickets WHERE id=?',(wid,)).fetchone();p=json.loads(row['payload']) if row else {}
     # Inventory usage and all native-only fields remain owned by their original workflow.
-    p.update({'product':d.get('product',''),'description':d.get('issue',''),'date':d.get('reported',''),'deliveryDate':d.get('delivered',''),'region':d.get('region') or d.get('country',''),'category':d.get('issueType','待分类'),'problemType':d.get('problemType') or d.get('issueType','待分类'),'owner':d.get('owner',''),'dueDate':d.get('planned',''),'notes':d.get('feedback',''),'dashboardStage':d.get('stage','审核'),'executionMethod':d.get('method','待确定'),'safetyLevel':d.get('grade','待评估'),'costResponsibility':d.get('cost','待确认'),'causeAnalysis':d.get('rootCause') or d.get('cause',''),'workflowV10':d,'workflowV10Version':raw['version']})
+    p.update({'product':d.get('product',''),'description':d.get('issue',''),'date':d.get('reported',''),'deliveryDate':d.get('delivered',''),'region':d.get('region') or d.get('country',''),'category':d.get('issueType','待分类'),'problemType':d.get('problemType') or d.get('issueType','待分类'),'owner':d.get('owner',''),'ownerId':d.get('ownerId'),'dueDate':d.get('planned',''),'notes':d.get('feedback',''),'dashboardStage':d.get('stage','审核'),'executionMethod':d.get('method','待确定'),'safetyLevel':d.get('grade','待评估'),'costResponsibility':d.get('cost','待确认'),'causeAnalysis':d.get('rootCause') or d.get('cause',''),'workflowV10':d,'workflowV10Version':raw['version']})
     p['stage']='关闭与复盘' if d.get('stage')=='已关闭' else {'审核':'初步分析','工程下单':'制定方案','客户验收':'售后回访','负责人复核':'售后回访'}.get(d.get('stage'),'执行处理')
     p['dashboardStage']={'采购':'生产采购','生产':'生产采购','品质检验':'生产采购','部门处理':'现场处理','负责人复核':'客户验收'}.get(d.get('stage'),d.get('stage','审核'))
     p['dashboardSourceStage']=p['stage']
@@ -187,6 +192,7 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
     if user:
         if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
         seed_legacy(db)
+        aftercare_sync.refresh(db)
     if route=='status':return 200,{'content-type':'application/json'},json.dumps({'user':profile(db,user)},ensure_ascii=False).encode()
     j=None
     if method!='GET' and headers.get('content-type','').startswith('application/json'):
@@ -205,12 +211,16 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
         path='/api/aftercare/work-items/'+wid+'/files'
         route='work-items/'+wid+'/files'
     if route=='work-items' and method=='POST':
+        for index,item in enumerate(j.get('items',[])):
+            previous=db.execute('SELECT payload FROM af2_customer_work_items WHERE id=?',(item.get('id'),)).fetchone()
+            j['items'][index]=aftercare_sync.normalize(db,item,json.loads(previous['payload']) if previous else None)
+        body=json.dumps(j,ensure_ascii=False).encode()
         result=internal_save(db,user,j or {})
         if result:return 200,{'content-type':'application/json'},json.dumps(result).encode()
         for item in j.get('items',[]):
             row=db.execute('SELECT * FROM af2_customer_work_items WHERE id=?',(item.get('id'),)).fetchone()
             if not row:raise core.Problem('工单不存在',404)
-            old=json.loads(row['payload']);req=db.execute('SELECT s.market_id FROM af2_customer_requests r JOIN af2_customer_stores s ON s.id=r.store_id WHERE r.id=?',(row['request_id'],)).fetchone()
+            old=aftercare_sync.normalize(db,json.loads(row['payload']));req=db.execute('SELECT s.market_id FROM af2_customer_requests r JOIN af2_customer_stores s ON s.id=r.store_id WHERE r.id=?',(row['request_id'],)).fetchone()
             old['projectId']=old.get('projectId') or req['market_id'];item['projectId']=item.get('projectId') or old['projectId']
             validate_item(db,user,item,old)
     if re.fullmatch(r'requests/[^/]+/check',route) and method=='POST':

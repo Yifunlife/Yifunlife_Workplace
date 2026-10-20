@@ -127,3 +127,44 @@ with database.connect() as db:
  assert db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]==before_stock
  stored=json.loads(db.execute("SELECT payload FROM af2_department_records WHERE kind='finance' AND id='QA-COST-1'").fetchone()[0]);assert stored['paid']==2300 and stored['paymentHistory'][0]['reference']=='QA-BANK-1'
 print('PASS: original internal installation photos/signatures and completion, finance vouchers/review/payment history, version conflict and project/role isolation; group stock unchanged.')
+# Canonical identities follow master IDs; ambiguous names are not guessed.
+import aftercare_sync,work_reminders
+with database.connect() as db:
+ current=next(i for i in aftercare_sync.tasks(db,admin) if i['id']=='QA-WORK-1')
+ payload=json.loads(db.execute("SELECT payload FROM af2_customer_work_items WHERE id='QA-WORK-1'").fetchone()[0]);payload.update(owner=specialist['name'],ownerId=specialist['id'],stage='采购',department='采购部',planned='2026-01-01')
+ payload=aftercare_sync.normalize(db,payload)
+ db.execute("UPDATE af2_customer_work_items SET payload=? WHERE id='QA-WORK-1'",(json.dumps(payload,ensure_ascii=False),));aftercare.sync_ticket(db,'QA-WORK-1',admin['id'])
+ db.execute("UPDATE employees SET name='售后新姓名' WHERE id=?",(specialist['id'],));db.execute("UPDATE projects SET name='项目新名称' WHERE id='p1'");db.execute("UPDATE customers SET name='客户新名称' WHERE id='c1'")
+ aftercare_sync.refresh(db)
+ payload=json.loads(db.execute("SELECT payload FROM af2_customer_work_items WHERE id='QA-WORK-1'").fetchone()[0]);assert payload['owner']=='售后新姓名' and payload['ownerId']==specialist['id'];assert payload['project']=='项目新名称' and payload['customer']=='客户新名称'
+ assert any(t['id']=='QA-WORK-1' for t in aftercare_sync.tasks(db,admin,'procurement'))
+ assert not any(t['id']=='QA-WORK-1' for t in aftercare_sync.tasks(db,admin,'factory'))
+ assert aftercare_sync.tasks(db,other,'procurement')==[]
+ assert any(r['record_id']=='QA-WORK-1' and r['owner_id']==specialist['id'] for r in (work_reminders.report(db,admin,center='procurement')['items']+work_reminders.report(db,admin,center='procurement')['attention']))
+ # An unknown or ambiguous free-text owner is retained for review, never assigned arbitrarily.
+ unresolved=aftercare_sync.normalize(db,{**payload,'owner':'无法核实人员','ownerId':None})
+ assert unresolved.get('ownerId') is None and any(i['field']=='owner' for i in unresolved['sharedIdentityIssues'])
+ # The group expense report projects the exact approved cost, without creating a second ledger row.
+ import aftersales_expenses
+ report=aftersales_expenses.report(db,{'p1':core.need(db,'projects','p1')},cost['date'])
+ assert len([x for x in report['records'] if x['id']=='QA-COST-1'])==1
+ assert next(x for x in report['records'] if x['id']=='QA-COST-1')['minor']==12300
+ assert next(x for x in report['records'] if x['id']=='QA-COST-1')['paid_minor']==2300
+ assert db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]==before_stock
+print('PASS: shared master renames follow IDs; department tasks/reminders use same record and respect project scope; approved costs/payment amounts reach group reports without ledger duplication.')
+# Source purchase completion hands the very same task to production, then warehouse.
+record=next(d for d in call(admin,'work-items')[1]['items'] if d['id']=='QA-WORK-1')
+record.update(stage='生产采购',department='工厂',purchase={'status':'仓库有库存','buyer':admin['name'],'amountCents':0,'completedAt':cost['date']})
+code,result=call(admin,'work-items',{'items':[record]});assert code==200,(code,result)
+with database.connect() as db:
+ assert any(x['id']==record['id'] for x in aftercare_sync.tasks(db,admin,'factory'))
+ assert not any(x['id']==record['id'] for x in aftercare_sync.tasks(db,admin,'procurement'))
+record=next(d for d in call(admin,'work-items')[1]['items'] if d['id']=='QA-WORK-1')
+record.update(stage='发货物流',department='仓库',production={'status':'生产完成','amountCents':0,'completedAt':cost['date']})
+code,result=call(admin,'work-items',{'items':[record]});assert code==200,(code,result)
+with database.connect() as db:
+ assert any(x['id']==record['id'] for x in aftercare_sync.tasks(db,admin,'stock'))
+ assert not any(x['id']==record['id'] for x in aftercare_sync.tasks(db,admin,'factory'))
+ assert db.execute('SELECT COUNT(*) FROM service_tickets WHERE id=?',(record['id'],)).fetchone()[0]==1
+ assert db.execute('SELECT COUNT(*) FROM stock_movements').fetchone()[0]==before_stock
+print('PASS: purchase→production→warehouse handoff keeps one authoritative work item and does not post actual stock movements.')

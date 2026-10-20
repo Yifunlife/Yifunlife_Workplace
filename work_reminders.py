@@ -18,6 +18,9 @@ CLOSED = {'done','accepted','closed','cancelled'}
 def report(db, user, center=None, project=None, today=None):
     today = today or datetime.now(ZONE).date().isoformat()
     day = date.fromisoformat(today)
+    if user['role']!='supplier':
+        import aftercare_sync
+        aftercare_sync.refresh(db)
     allowed = centers.available(db, user)
     if user['role'] == 'supplier': allowed = ['procurement']
     if center and center not in allowed: raise c.Problem('没有此中心的使用权限',403)
@@ -133,9 +136,11 @@ def report(db, user, center=None, project=None, today=None):
             # Legacy free-text names never become account assignments.
             owner=payload.get('ownerId') or payload.get('owner_id')
             if owner not in employees: owner=None
+            shared=payload.get('workflowV10') or {}
+            shared_scope=aftercare_sync.task_centers(shared) if shared else ['aftersales']
             add('service',r['id'],payload.get('description') or '售后事项','aftersales',
                 r['project_id'],owner,aftersales_dashboard.local_date(payload.get('dueDate')),
-                ('aftersales',),aftersales_dashboard.phase(payload),
+                tuple(shared_scope),shared.get('stage') or aftersales_dashboard.phase(payload),
                 payload.get('safetyLevel') in ('一般安全风险','S级安全问题'),
                 ('原登记负责人：'+str(payload.get('owner'))+'；需核对账号分配') if not owner and payload.get('owner') else '',
                 module_link='#ticket-detail/'+str(r['id']))
