@@ -372,7 +372,7 @@ function renderProductionBoard(el,report,key='all'){
 }
 
 function renderAftersalesWorkflow(el){
- el.innerHTML=head('售后工作台','客户报修、审核、部门处理与验收闭环；与集团项目及问题统计共用记录。')+'<iframe title="售后工作台" src="/aftercare/workspace?record='+encodeURIComponent(routeRecord||'')+'&project='+encodeURIComponent(project||'')+'" class="aftercare-workflow-frame"></iframe>';
+ el.classList.add('aftersales-original-workspace');el.innerHTML='<iframe title="售后工作台" src="/aftercare/workspace?record='+encodeURIComponent(routeRecord||'')+'&project='+encodeURIComponent(project||'')+'" class="aftercare-workflow-frame"></iframe>';
 }
 
 window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='yifun-aftercare-height'||!Number.isFinite(event.data.height))return;const frame=document.querySelector('.aftercare-workflow-frame');if(frame&&event.source===frame.contentWindow)frame.style.height=Math.max(600,Math.min(20000,event.data.height))+'px';});
