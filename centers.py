@@ -13,7 +13,7 @@ CURRENCIES = ('CNY', 'USD', 'EUR', 'SAR', 'AED', 'AUD')
 SPEND_CURRENCIES = ('CNY', 'USD', 'EUR', 'SAR', 'AED', 'OTHER')
 SPEND_CHANNELS = ('抖音','小红书','视频号','YouTube','阿里巴巴国际站','独立站','Instagram','Facebook','TikTok','展会','其他渠道')
 SPEND_EXPENSES = ('广告费','平台服务费','内容制作费','达人合作费','展位费','差旅费','活动物料费','代理服务费','其他费用')
-NAMES = {'marketing':'运营中心','crm':'销售中心','design':'设计中心','projects':'交付进度','quote':'核算中心','engineering':'工程中心','procurement':'采购中心','stock':'仓库中心','aftersales':'售后中心','finance':'财务中心','factory':'生产中心'}
+NAMES = {'marketing':'运营中心','crm':'销售中心','design':'设计中心','projects':'交付进度','quote':'核算中心','engineering':'工程中心','procurement':'采购中心','stock':'仓库中心','aftersales':'售后中心','product_rd':'产品研发中心','software':'软件中心','brand_visual':'品牌视觉中心','finance':'财务中心','factory':'生产中心'}
 DESIGN_STATES = {'queued':'待排设计','waiting_materials':'待补资料','in_progress':'设计中','review':'内部审核','waiting_confirmation':'待客户确认','revising':'修改中','confirmed':'客户已确认','handoff':'待工程接收','accepted':'工程已接收','cancelled':'已取消'}
 TRANSITIONS = {'queued':('waiting_materials','in_progress','cancelled'),'waiting_materials':('queued','in_progress','cancelled'),'in_progress':('review','waiting_confirmation','waiting_materials','cancelled'),'review':('in_progress','waiting_confirmation','revising','cancelled'),'waiting_confirmation':('confirmed','revising','cancelled'),'revising':('review','waiting_confirmation','cancelled'),'confirmed':('handoff','revising'),'handoff':('accepted','revising'),'accepted':(),'cancelled':()}
 TARGETS = {'marketing':('spend','月度投入预算','money'),'crm':('booked','月度成交目标','money'),'design':('completed','月度设计确认目标','count'),'projects':('delivered','月度交付批次目标','count'),'engineering':('released','月度工程下单目标','count'),'procurement':('new_orders','月度采购下单目标','count'),'stock':('delivered','月度交付批次目标','count'),'aftersales':('closed','月度售后关闭目标','count')}
@@ -31,7 +31,8 @@ def available(db,user):
            'projects':all_internal,'quote':role in (*MANAGERS,'sales'),
            'engineering':all_internal,'procurement':role in (*MANAGERS,'purchasing','engineering','warehouse','finance'),
            'stock':all_internal,'aftersales':all_internal,'finance':True,
-           'factory':role in (*MANAGERS,'engineering','purchasing')}
+           'factory':role in (*MANAGERS,'engineering','purchasing'),
+           **{key:role in MANAGERS or assigned(db,user,key) for key in ('product_rd','software','brand_visual')}}
     return [key for key in NAMES if flags[key]]
 
 def require_center(db,user,center):
@@ -112,7 +113,7 @@ def execute(db,user,action,p):
         c.permit(user,'admin');employee=c.need(db,'employees',p.get('employee_id'))
         if employee['role']=='supplier':raise c.Problem('供应商账号不能分配内部中心职责')
         centers=p.get('centers')
-        if not isinstance(centers,list) or any(x not in ('marketing','design') for x in centers) or len(set(centers))!=len(centers):raise c.Problem('请选择有效中心')
+        if not isinstance(centers,list) or any(x not in ('marketing','design','product_rd','software','brand_visual') for x in centers) or len(set(centers))!=len(centers):raise c.Problem('请选择有效中心')
         before=[r[0] for r in db.execute('SELECT center FROM center_members WHERE employee_id=?',(employee['id'],))]
         db.execute('DELETE FROM center_members WHERE employee_id=?',(employee['id'],))
         db.executemany('INSERT INTO center_members VALUES(?,?)',[(employee['id'],x) for x in centers])
@@ -256,7 +257,9 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
         metrics.append({'key':key,'label':label,'value':value,'unit':unit,'hint':hint})
     def item(r,title,status,page,detail='',due=None,owner=None):
         rows.append({'id':r['id'],'title':title,'status':status,'page':page,'project_id':r.get('project_id'),'project_name':projects.get(r.get('project_id'),{}).get('name',''),'detail':detail,'due':due,'owner':owner or employees.get(r.get('owner_id'),'待分配')})
-    if center=='marketing':
+    if center in ('product_rd','software','brand_visual'):
+        notices.append('本中心已接入集团员工资料；管理员可在人员与权限中分配中心职责。业务流程待补充，不统计其它部门的订单。')
+    elif center=='marketing':
         spends=[r for r in records(db,user,'spend',project)['items'] if r['status']=='active' and r['currency']==currency and in_day(r['record_date'])]
         leads=operations.list_rows(db,user,'leads')
         if project:
@@ -422,4 +425,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
     import aftercare_sync
     shared_tasks=aftercare_sync.tasks(db,user,center,project) if center in ('engineering','factory','procurement','stock','aftersales') else []
-    return {'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'members':[dict(row) for row in db.execute("SELECT e.id,e.name,e.role FROM center_members m JOIN employees e ON e.id=m.employee_id WHERE m.center=? AND e.status='active' ORDER BY e.name,e.id",(center,))] if center in ('product_rd','software','brand_visual') else [],'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}

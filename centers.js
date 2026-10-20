@@ -1,7 +1,7 @@
 let aftercareSharedTaskId=new URLSearchParams(location.search).get('sharedTask')==='1'?new URLSearchParams(location.search).get('record')||'':'';
 'use strict';
-const CENTER_NAMES={marketing:'运营中心',crm:'销售中心',design:'设计中心',projects:'交付进度',quote:'核算中心',engineering:'工程中心',procurement:'采购中心',stock:'仓库中心',aftersales:'售后中心',finance:'财务中心',factory:'生产中心'};
-const CENTER_DESCRIPTIONS={marketing:'记录渠道投入，跟踪线索质量与销售承接。',crm:'围绕客户、商机、跟进和正式订单推进业务。',design:'从需求、排期、成果确认到工程接收。',projects:'同一项目下查看各部门任务与交付记录。',quote:'核对报价进展，继续使用原有产品库与报价流程。',engineering:'核对执行规格、下达工程单，跟进安装与现场问题。',procurement:'从采购需求到供应商确认、发货和验收。',stock:'共用库存账本，区分在库、占用、待检和可用数量。',aftersales:'追踪客户问题、设备保修与退换返修。',finance:'按币种核对收款与结算，沿用财务开放状态。',factory:'查看工程分派的生产需求与交接记录。'};
+const CENTER_NAMES={marketing:'运营中心',crm:'销售中心',design:'设计中心',projects:'交付进度',quote:'核算中心',engineering:'工程中心',procurement:'采购中心',stock:'仓库中心',aftersales:'售后中心',product_rd:'产品研发中心',software:'软件中心',brand_visual:'品牌视觉中心',finance:'财务中心',factory:'生产中心'};
+const CENTER_DESCRIPTIONS={product_rd:'产品研发、样品验证与产品改进。',software:'软件开发、版本交付与系统维护。',brand_visual:'品牌形象、视觉设计与品牌物料。',marketing:'记录渠道投入，跟踪线索质量与销售承接。',crm:'围绕客户、商机、跟进和正式订单推进业务。',design:'从需求、排期、成果确认到工程接收。',projects:'同一项目下查看各部门任务与交付记录。',quote:'核对报价进展，继续使用原有产品库与报价流程。',engineering:'核对执行规格、下达工程单，跟进安装与现场问题。',procurement:'从采购需求到供应商确认、发货和验收。',stock:'共用库存账本，区分在库、占用、待检和可用数量。',aftersales:'追踪客户问题、设备保修与退换返修。',finance:'按币种核对收款与结算，沿用财务开放状态。',factory:'查看工程分派的生产需求与交接记录。'};
 const DESIGN_STATES={queued:'待排设计',waiting_materials:'待补资料',in_progress:'设计中',review:'内部审核',waiting_confirmation:'待客户确认',revising:'修改中',confirmed:'客户已确认',handoff:'待工程接收',accepted:'工程已接收',cancelled:'已取消'};
 const DESIGN_TRANSITIONS={queued:['waiting_materials','in_progress','cancelled'],waiting_materials:['queued','in_progress','cancelled'],in_progress:['review','waiting_confirmation','waiting_materials','cancelled'],review:['in_progress','waiting_confirmation','revising','cancelled'],waiting_confirmation:['confirmed','revising','cancelled'],revising:['review','waiting_confirmation','cancelled'],confirmed:['handoff','revising'],handoff:['accepted','revising'],accepted:[],cancelled:[]};
 const CENTER_CURRENCIES=['CNY','USD','EUR','SAR','AED','AUD'].map(id=>({id,name:{CNY:'人民币 CNY',USD:'美元 USD',EUR:'欧元 EUR',SAR:'沙特里亚尔 SAR',AED:'阿联酋迪拉姆 AED',AUD:'澳元 AUD'}[id]}));
@@ -25,6 +25,11 @@ async function renderCenter(el,id,generation){
  pageLoading(el,CENTER_NAMES[id],CENTER_DESCRIPTIONS[id],['/api/centers/dashboard?'+query]);
  try{
   const data=await api('/api/centers/dashboard?'+query);if(generation!==renderGeneration)return;centerData=data;const showSharedTasks=()=>{if(generation===renderGeneration)renderSharedAftersalesTasks(el,data.aftersales_tasks||[]);};queueMicrotask(showSharedTasks);if(id==='factory'&&data.production){renderProductionBoard(el,data.production);return;}if(id==='procurement'&&data.procurement){renderProcurementBoard(el,data);return;}if(id==='aftersales'&&data.aftersales){renderAftersalesBoard(el,data);return;}if(id==='engineering'&&data.engineering){renderEngineeringBoard(el,data);return;}if(id==='quote'&&data.costing){renderCostingBoard(el,data);return;}if(id==='design'&&data.design){renderDesignBoard(el,data);return;}if(id==='marketing'){renderTestAccountBoard(el,data);return;}if(id==='crm'&&data.sales?.lifecycle){renderSalesLifecycle(el,data);return;}
+  if(['product_rd','software','brand_visual'].includes(id)){
+   el.classList.add('department-dashboard');
+   const members=data.members||[];
+   el.innerHTML=head(CENTER_NAMES[id]+'总看板',CENTER_DESCRIPTIONS[id],can('admin')?button('center-manage-members','分配中心成员','','secondary'):'')+panel('中心成员 · '+members.length+' 人',members.length?table(['员工姓名','岗位'],members.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(roles[m.role]||m.role)}</td></tr>`)):empty('尚未分配中心成员','管理员可在“人员与权限 → 中心职责”中分配员工。'))+panel('业务工作区',empty('中心已建立','本中心业务流程待补充。员工姓名与集团账号保持同步。'));return;
+  }
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
   el.classList.add('department-dashboard');
@@ -128,9 +133,10 @@ async function centerAction(name,id){
   const target=centerData.target,r=target.record,money=target.definition.kind==='money';
   modal(target.definition.label,`<p class="full">${esc(centerData.period.from.slice(0,7))} · ${money?esc(centerData.currency):'数量目标'}。目标适用于整个中心。</p>`+input('value','目标值','number',r?(money?r.value/100:r.value):'',true,`min="0" step="${money?'0.01':'1'}"`)+textarea('note',r?'调整原因':'目标说明',Boolean(r)),p=>centerCall('target',{...p,center:centerData.center,month:centerData.period.from,currency:centerData.currency,...(r?{version:r.version}:{})}));return true;
  }
+ if(name==='center-manage-members'){view='employees';await render();return true;}
  if(name==='center-members'){
   const employee=state.employees.find(e=>e.id===id);
-  modal('分配运营／设计职责',`<p class="full">${esc(employee.name)}。增加中心职责，原岗位与项目成员权限继续保留。</p><fieldset class="member-list full"><legend>业务中心职责</legend>${['marketing','design'].map(key=>`<label><input type="checkbox" name="${key}"${employee.centers?.includes(key)?' checked':''}><span>${CENTER_NAMES[key]}</span></label>`).join('')}</fieldset><p class="form-help full">设计任务仍需加入对应项目后才能查看。管理员和 CEO 默认可查看各中心。</p>`,p=>centerCall('members',{employee_id:id,centers:['marketing','design'].filter(key=>p[key]==='on')}));return true;
+  modal('分配中心职责',`<p class="full">${esc(employee.name)}。增加中心职责，原岗位与项目成员权限继续保留。</p><fieldset class="member-list full"><legend>业务中心职责</legend>${['marketing','design','product_rd','software','brand_visual'].map(key=>`<label><input type="checkbox" name="${key}"${employee.centers?.includes(key)?' checked':''}><span>${CENTER_NAMES[key]}</span></label>`).join('')}</fieldset><p class="form-help full">设计任务仍需加入对应项目后才能查看。管理员和 CEO 默认可查看各中心。</p>`,p=>centerCall('members',{employee_id:id,centers:['marketing','design','product_rd','software','brand_visual'].filter(key=>p[key]==='on')}));return true;
  }
  if(name==='center-followup'||name==='center-followup-history'){
   const r=opsData?.items.find(r=>r.id===id);if(!r)throw Error('请刷新业务记录');
