@@ -55,7 +55,7 @@ def allowed_emails():
 def verified_email(headers):
     if not container_mode(): return None
     value = headers.get('X-Yifun-Verified-Email', '').strip().lower()
-    return value if value and value in allowed_emails() else None
+    return value if value and (password_login() or value in allowed_emails()) else None
 
 
 def read_only(user):

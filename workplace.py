@@ -96,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
             if not user and not runtime_config.public_origin() and (ROOT/'data/local-admin.json').exists():
                 del self.headers['Cookie']
                 return self.session()
-            if user and runtime_config.container_mode() and user['email'].lower() not in runtime_config.allowed_emails():return None
+            if user and runtime_config.container_mode() and not runtime_config.password_login() and user['email'].lower() not in runtime_config.allowed_emails():return None
             if user and runtime_config.container_mode() and self.headers.get('X-Yifun-Verified-Email') and user['email'].lower()!=runtime_config.verified_email(self.headers):return None
             if user and user['project_id'] and not access.visible_project(db,user,user['project_id']):
                 user.update(project_id=None,quote_kind='original',parent_order_id=None)
@@ -186,6 +186,11 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/employee-username':
                 with database.connect() as db:
                     db.execute('BEGIN IMMEDIATE');result=username_login.rename(db,user,p.get('id'),p.get('username'))
+                return self.respond(200,result)
+            if path=='/api/employee-password':
+                import employee_passwords
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE');result=employee_passwords.reset(db,user,p)
                 return self.respond(200,result)
             if path=='/api/employee-status':
                 core.permit(user,'admin')
@@ -434,7 +439,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def recover_account(self,p):
         identity=runtime_config.verified_email(self.headers)
-        if not runtime_config.container_mode() or not identity:raise core.Problem('请先验证账号邮箱',403)
+        if not runtime_config.container_mode() or not identity or identity not in runtime_config.allowed_emails():raise core.Problem('请先验证账号邮箱',403)
         with database.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             self.set_recovery_password(db,identity,p)
@@ -448,8 +453,8 @@ class Handler(BaseHTTPRequestHandler):
             account=username_login.find(db,identifier) if not path.endswith('/setup') else None
             email=account['email'] if account else identifier.strip().lower()
             if runtime_config.password_login():
-                if email not in runtime_config.allowed_emails():raise core.Problem('邮箱、工号或密码不正确',401)
                 if path.endswith('/setup'):raise core.Problem('请使用已经建立的账号登录；新账号由管理员建立',403)
+                if not account:raise core.Problem('邮箱、工号或密码不正确',401)
             elif runtime_config.container_mode() and identity!=email:raise core.Problem('只能使用已验证的站点邮箱登录',403)
             if path.endswith('/setup'):
                 if runtime_config.container_mode():

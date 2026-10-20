@@ -31,7 +31,6 @@ def bootstrap(db,user):
     p=projects(db,user)
     team=[{'id':r['id'],'name':r['name'],'role':role(db,dict(r))} for r in db.execute("SELECT id,name,role,status,email FROM employees WHERE status='active'")]
     if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
-    seed_legacy(db)
     aftercare_sync.refresh(db)
     import aftercare_internal
     internal=aftercare_internal.context(db,user)
@@ -191,7 +190,6 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
         if runtime_config.read_only(user) or user['role']=='ceo':raise core.Problem('当前账号仅可查看',403)
     if user:
         if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
-        seed_legacy(db)
         aftercare_sync.refresh(db)
     if route=='status':return 200,{'content-type':'application/json'},json.dumps({'user':profile(db,user)},ensure_ascii=False).encode()
     j=None

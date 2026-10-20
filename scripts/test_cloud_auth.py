@@ -130,3 +130,7 @@ if __name__ == '__main__':
 if __name__ == "__main__":
     import subprocess
     subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("test_aftercare_integration.py"))],check=True)
+
+subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("test_employee_passwords.py"))],check=True)
+
+subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("build_aftercare_bundle.py")),"--check"],check=True)

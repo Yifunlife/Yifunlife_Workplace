@@ -1,5 +1,5 @@
 """Canonical shared identities and department views over the SAME aftersales records."""
-import json,unicodedata,time
+import json,unicodedata,time,hashlib
 import core,project_access as access
 CENTERS={'仓库':'stock','生产部':'factory','售后部':'aftersales','售后中心':'aftersales','工程部':'engineering','工程中心':'engineering','研发 / 技术部':'engineering','技术部':'engineering','采购部':'procurement','采购中心':'procurement','工厂':'factory','生产中心':'factory','品质部':'factory','物流部':'stock','仓库与物流中心':'stock','仓库中心':'stock','安装服务部':'engineering','安装中心':'engineering','销售部':'crm','销售中心':'crm'}
 LABELS={'aftersales':'售后中心','engineering':'工程中心','procurement':'采购中心','factory':'生产中心','stock':'仓库中心','crm':'销售中心'}
@@ -53,8 +53,15 @@ def normalize(db,d,old=None):
     d['sharedIdentityIssues']=issues
     return d
 
+def fingerprint(db):
+    queries=('SELECT id,name,role,status FROM employees ORDER BY id','SELECT project_id,employee_id FROM project_members ORDER BY project_id,employee_id','SELECT id,name,customer_id FROM projects ORDER BY id','SELECT id,name FROM customers ORDER BY id','SELECT id,number,project_id FROM order_baselines ORDER BY id','SELECT id,serial,name,project_id FROM equipment_assets ORDER BY id','SELECT id,version FROM service_tickets ORDER BY id','SELECT id,version FROM af2_customer_work_items ORDER BY id','SELECT kind,id,version FROM af2_department_records ORDER BY kind,id')
+    return hashlib.sha256(json.dumps([[tuple(row) for row in db.execute(q)] for q in queries],ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
 def refresh(db):
     if not db.execute("SELECT 1 FROM sqlite_master WHERE name='af2_customer_work_items'").fetchone():return
+    signature=fingerprint(db)
+    previous=db.execute('SELECT value FROM settings WHERE key=?',('aftercare_shared_identity_revision',)).fetchone()
+    if previous and previous['value']==signature:return
     import aftercare
     aftercare.seed_legacy(db)
     for row in db.execute('SELECT w.*,s.market_id FROM af2_customer_work_items w JOIN af2_customer_requests q ON q.id=w.request_id JOIN af2_customer_stores s ON s.id=q.store_id').fetchall():
@@ -68,6 +75,7 @@ def refresh(db):
     # Group customer/store names follow master IDs; independent contact details stay intact.
     db.execute('UPDATE af2_customer_profiles SET company=(SELECT name FROM customers WHERE id=market_id) WHERE market_id IN (SELECT id FROM customers) AND company<>(SELECT name FROM customers WHERE id=market_id)')
     db.execute('UPDATE af2_customer_stores SET name=(SELECT name FROM projects WHERE id=market_id) WHERE market_id IN (SELECT id FROM projects) AND name<>(SELECT name FROM projects WHERE id=market_id)')
+    db.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('aftercare_shared_identity_revision',fingerprint(db)))
 
 def masters(db,user):
     result={'orders':[],'equipment':[]}
