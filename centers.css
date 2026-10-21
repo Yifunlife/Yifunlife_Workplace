@@ -195,3 +195,5 @@
 #unified-sc main{width:100%;min-width:0}
 @media(max-width:760px){#unified-sc aside{padding:10px 16px;gap:4px}#unified-sc .nav{padding:8px 10px}}
 @media(max-width:480px){#unified-sc aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:10px;gap:5px}#unified-sc .nav{width:100%;padding:9px 6px;font-size:12px}}
+
+#unified-sc .usc-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px}#unified-sc .usc-form label{display:flex;flex-direction:column;gap:6px;font-size:13px}#unified-sc .usc-form input,#unified-sc .usc-form select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:var(--paper)}#unified-sc .usc-form button{align-self:end;padding:10px;border:0;border-radius:6px;background:var(--brand);color:var(--paper)}#unified-sc .box{margin-bottom:16px}#unified-sc #usc-notice{overflow-wrap:anywhere}#unified-sc .notice{overflow-wrap:anywhere}@media(max-width:600px){#unified-sc .usc-form{grid-template-columns:1fr}}

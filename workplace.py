@@ -13,6 +13,7 @@ import operations
 import work_reminders
 import username_login
 import centers
+import android_fleet
 import aftercare
 import connections
 import account_reporting
@@ -25,6 +26,7 @@ ROLES={'admin':['quote','procurement','aftersales'],'ceo':['quote','procurement'
 
 def init():
     database.init()
+    with database.connect() as db:android_fleet.init(db)
     with database.connect() as db:
         account_reporting.init(db)
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_requests(email TEXT PRIMARY KEY,requested_at REAL NOT NULL)')
@@ -145,11 +147,20 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/auth/recovery-request':return self.request_recovery(p)
             if path=='/api/auth/reset-link':return self.consume_recovery_link(p)
             if path=='/api/auth/recover':return self.recover_account(p)
+            if path.startswith('/api/software/agent/'):
+                if len(json.dumps(p))>8192:raise core.Problem('设备请求过大',413)
+                with database.connect() as db:
+                    result=android_fleet.agent(db,path.rsplit('/',1)[-1],p,self.headers.get('Authorization',''),self.headers.get('CF-Connecting-IP',self.client_address[0]))
+                return self.respond(200,result)
             if path in ('/api/auth/setup','/api/auth/login'):return self.authenticate(path,p)
             user=self.session()
             if not user:raise core.Problem('请先登录统一工作平台',401)
             if runtime_config.read_only(user) and path not in ('/api/auth/logout','/api/context','/api/password'):raise core.Problem('共享账号仅可查看',403)
             if not self.bridge() and not hmac.compare_digest(self.headers.get('X-Yifun-Token',''),user['csrf']):raise core.Problem('会话已失效，请刷新后重试',403)
+            if path.startswith('/api/software/action/'):
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE');result=android_fleet.action(db,user,path.rsplit('/',1)[-1],p)
+                return self.respond(200,result)
             if path=='/api/column-permissions':
                 with database.connect() as db:
                     db.execute('BEGIN IMMEDIATE');result=cp.save(db,user,p)
@@ -331,6 +342,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not record:raise core.Problem('客户尚未同步，请在连接资料中刷新后重试',404)
                 access.require(db,user,'customers',record['customer_id'])
             return self.respond(200,record)
+        if path=='/api/software':
+            if not user:raise core.Problem('请先登录统一工作平台',401)
+            with database.connect() as db:result=android_fleet.overview(db,user)
+            return self.respond(200,result)
         if path=='/api/internal/session':
             if not self.bridge():raise core.Problem('来源无效',403)
             module=parse_qs(urlparse(self.path).query).get('module',[''])[0]
