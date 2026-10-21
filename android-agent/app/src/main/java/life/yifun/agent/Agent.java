@@ -38,7 +38,7 @@ public final class Agent {
         if(!pkg.isEmpty()) {
             t.put("package_name",pkg);
             try { PackageInfo p=c.getPackageManager().getPackageInfo(pkg,0); t.put("app_version",p.versionName==null?"未知":p.versionName).put("app_version_code",Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode); }
-            catch(android.content.pm.PackageManager.NameNotFoundException e){ t.put("app_version","未安装"); }
+            catch(android.content.pm.PackageManager.NameNotFoundException e){ t.put("app_version","未安装或不可见"); }
         }
         return t;
     }
