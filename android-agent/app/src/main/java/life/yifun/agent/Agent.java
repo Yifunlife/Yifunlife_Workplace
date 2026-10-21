@@ -30,9 +30,10 @@ public final class Agent {
     static boolean bound(Context c) { return prefs(c).contains("device_id"); }
     static JSONObject telemetry(Context c) throws Exception {
         JSONObject t=new JSONObject();
-        t.put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL).put("android_version",Build.VERSION.RELEASE).put("sdk_int",Build.VERSION.SDK_INT).put("agent_version","0.1.0");
+        t.put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL).put("android_version",Build.VERSION.RELEASE).put("sdk_int",Build.VERSION.SDK_INT).put("agent_version","0.2.0");
         DevicePolicyManager dm=(DevicePolicyManager)c.getSystemService(Context.DEVICE_POLICY_SERVICE);
         boolean owner=dm!=null && dm.isDeviceOwnerApp(c.getPackageName());
+        t.put("protocol_version",2).put("supported_tasks",new org.json.JSONArray().put("sync_config").put("collect_agent_logs"));
         t.put("device_owner",owner).put("managed_install",owner).put("reboot",owner);
         String pkg=prefs(c).getString("package_name","");
         if(!pkg.isEmpty()) {
@@ -66,10 +67,26 @@ public final class Agent {
         if(!prefs(c).edit().putString("device_id",result.getString("device_id")).putString("package_name",result.getString("package_name")).commit())throw new java.io.IOException("绑定信息保存失败，请重新绑定");
         schedule(c); heartbeat(c);
     }
-    static void heartbeat(Context c) throws Exception {
+    static synchronized void heartbeat(Context c) throws Exception {
         if(!bound(c))return;
-        request(c,"/api/software/agent/heartbeat",new JSONObject().put("telemetry",telemetry(c)),true);
-        prefs(c).edit().putLong("last_success",System.currentTimeMillis()).apply();
+        try(Outbox outbox=new Outbox(c)){
+            String requestId=prefs(c).getString("sync_request_id",null);
+            if(requestId==null){requestId=UUID.randomUUID().toString();if(!prefs(c).edit().putString("sync_request_id",requestId).commit())throw new java.io.IOException("无法保存同步编号");}
+            JSONObject pending=outbox.receipt();
+            JSONObject body=new JSONObject().put("request_id",requestId).put("telemetry",telemetry(c)).put("events",outbox.events());
+            if(pending!=null)body.put("receipt",pending);
+            JSONObject result=request(c,"/api/software/agent/sync",body,true);
+            JSONObject config=result.getJSONObject("config");
+            if(!prefs(c).edit().putString("config",config.toString()).putLong("last_success",System.currentTimeMillis()).commit())throw new java.io.IOException("配置保存失败");
+            outbox.acknowledge(result.optJSONArray("acknowledged_events")==null?new org.json.JSONArray():result.getJSONArray("acknowledged_events"));
+            outbox.acknowledgedTask(result.optString("acknowledged_task",""));
+            JSONObject task=result.optJSONObject("task");
+            if(task!=null){
+                try{TaskAdapters.execute(c,outbox,task);}
+                catch(Exception ex){outbox.complete(task.getString("id"),task.getString("lease"),"failed",new JSONObject().put("error",ex.getMessage()==null?"执行失败":ex.getMessage()));}
+            }
+            prefs(c).edit().remove("sync_request_id").commit();
+        }
     }
     static void schedule(Context c) {
         if(!bound(c))return;

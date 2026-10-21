@@ -1,5 +1,6 @@
 """Android enrollment and telemetry. Device credentials never authorize staff APIs."""
 import hashlib, json, re, secrets, time
+import android_ops
 import core as c
 import centers, column_permissions as cp, project_access as access, runtime_config
 
@@ -35,10 +36,14 @@ def overview(db,user):
     enrollments=[dict(r) for r in db.execute('SELECT id,code_hint,product_id,customer_id,site,label,expires,state,device_id,created_at FROM android_enrollments ORDER BY created_at DESC') if r['customer_id'] in ids]
     for e in enrollments:
         if e['state']=='pending' and e['expires']<time.time():e['state']='expired'
-    return {'products':[dict(r) for r in db.execute('SELECT * FROM android_products ORDER BY created_at DESC')], 'customers':customers,'devices':devices,'enrollments':enrollments,'can_write':not runtime_config.read_only(user) and user['role'] in ('admin','ceo') and cp.level(db,user,'center-software')==2,'server_time':time.time()}
+    return {'products':[dict(r) for r in db.execute('SELECT * FROM android_products ORDER BY created_at DESC')], 'customers':customers,'devices':devices,'enrollments':enrollments,'can_write':not runtime_config.read_only(user) and user['role'] in ('admin','ceo') and cp.level(db,user,'center-software')==2,'server_time':time.time(),**android_ops.snapshot(db,user,ids)}
 
 def action(db,user,name,p):
     check(db,user,True)
+    if name=='resource':return android_ops.save(db,user,p)
+    if name=='resource-state':return android_ops.change_state(db,user,p)
+    if name=='task':return android_ops.task_create(db,user,p)
+    if name=='task-action':return android_ops.task_action(db,user,p)
     if name=='product':
         label=field(p,'name','产品名称',100);package=field(p,'package_name','安卓包名',200)
         if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+',package):raise c.Problem('包名格式不正确，例如 com.company.dart')
@@ -46,6 +51,10 @@ def action(db,user,name,p):
         key=c.uid();db.execute('INSERT INTO android_products VALUES(?,?,?,?)',(key,label,package,c.now()));c.audit(db,user,'android_product',key,'登记安卓产品',{'package_name':package});return {'ok':True}
     if name=='license':
         product=c.need(db,'android_products',p.get('product_id'));customer=c.need(db,'customers',p.get('customer_id'));access.require(db,user,'customers',customer['id'])
+        if p.get('site_id'):
+            place=android_ops.active(db,p['site_id'],'site')
+            if place['customer_id']!=customer['id']:raise c.Problem('场地与客户不一致')
+            p={**p,'site':place['data']['name']}
         site=field(p,'site','场地',100);label=field(p,'label','设备名称',100);raw='AND-'+secrets.token_hex(16).upper();key=c.uid()
         db.execute('INSERT INTO android_enrollments(id,code_hash,code_hint,product_id,customer_id,site,label,expires,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,digest(raw),raw[-6:],product['id'],customer['id'],site,label,time.time()+7*86400,user['id'],c.now()))
         c.audit(db,user,'android_enrollment',key,'签发安卓绑定码',{'customer_id':customer['id'],'site':site});return {'ok':True,'code':raw,'expires_in_days':7}
@@ -62,20 +71,24 @@ def action(db,user,name,p):
 def report(p):
     raw=p.get('telemetry',{})
     if not isinstance(raw,dict):raise c.Problem('设备状态格式不正确')
-    allowed=('manufacturer','model','android_version','sdk_int','agent_version','app_version','app_version_code','device_owner','managed_install','reboot','package_name')
+    allowed=('manufacturer','model','android_version','sdk_int','agent_version','app_version','app_version_code','device_owner','managed_install','reboot','package_name','protocol_version','supported_tasks')
     result={}
     for key in allowed:
         value=raw.get(key)
         if value is None:continue
+        if key=='supported_tasks':
+            if not isinstance(value,list) or len(value)>20 or any(v not in android_ops.TASKS for v in value):raise c.Problem('任务能力清单无效')
+            result[key]=list(dict.fromkeys(value));continue
         if key in ('device_owner','managed_install','reboot'):
             if type(value) is not bool:raise c.Problem('设备能力格式不正确')
-        elif key in ('sdk_int','app_version_code'):
+        elif key in ('sdk_int','app_version_code','protocol_version'):
             if type(value) is not int or not 0<=value<=2147483647:raise c.Problem('设备版本格式不正确')
         elif not isinstance(value,str) or len(value)>200:raise c.Problem('设备信息格式不正确')
         result[key]=value
     return result
 
 def agent(db,name,p,authorization='',peer=''):
+    if name=='sync':return android_ops.sync(db,p,authorization)
     if name=='bind':
         peer_hash=digest(peer);stamp=time.time();limit=c.row(db,'SELECT * FROM android_bind_limits WHERE peer_hash=?',(peer_hash,))
         if limit and limit['expires']>stamp and limit['attempts']>=30:raise c.Problem('绑定请求过于频繁，请稍后重试',429)

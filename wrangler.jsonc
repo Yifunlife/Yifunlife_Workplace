@@ -72,5 +72,10 @@
       "binding": "AFTERSALES_FILES",
       "bucket_name": "yifun-workplace-aftersales-files"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  }
 }

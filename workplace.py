@@ -14,6 +14,7 @@ import work_reminders
 import username_login
 import centers
 import android_fleet
+import android_ops
 import aftercare
 import connections
 import account_reporting
@@ -26,7 +27,8 @@ ROLES={'admin':['quote','procurement','aftersales'],'ceo':['quote','procurement'
 
 def init():
     database.init()
-    with database.connect() as db:android_fleet.init(db)
+    with database.connect() as db:
+        android_fleet.init(db);android_ops.init(db)
     with database.connect() as db:
         account_reporting.init(db)
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_requests(email TEXT PRIMARY KEY,requested_at REAL NOT NULL)')
@@ -139,6 +141,10 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith('/api/aftercare/'):
                 return self.aftercare_api(path)
             p=self.read_json()
+            if path=='/internal/android-maintenance':
+                # This route is blocked at the public Worker; only scheduled private container fetches reach it.
+                if not runtime_config.container_mode() or self.headers.get('X-Yifun-Internal-Schedule')!='android-ops-v1':raise core.Problem('接口不存在',404)
+                android_ops.run_once();return self.respond(200,{'ok':True})
             if path=='/internal/database':
                 if not self.bridge():raise core.Problem('来源无效',403)
                 return self.respond(200,{'results':database.d1_batch(p.get('statements'))})
@@ -148,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/auth/reset-link':return self.consume_recovery_link(p)
             if path=='/api/auth/recover':return self.recover_account(p)
             if path.startswith('/api/software/agent/'):
-                if len(json.dumps(p))>8192:raise core.Problem('设备请求过大',413)
+                if len(json.dumps(p).encode())>(262144 if path.endswith('/sync') else 8192):raise core.Problem('设备请求过大',413)
                 with database.connect() as db:
                     result=android_fleet.agent(db,path.rsplit('/',1)[-1],p,self.headers.get('Authorization',''),self.headers.get('CF-Connecting-IP',self.client_address[0]))
                 return self.respond(200,result)
@@ -549,5 +555,6 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s');init()
     print(f'YIFUN Workplace V2：http://127.0.0.1:{PORT}',flush=True)
+    if not runtime_config.container_mode():android_ops.start()
     if not runtime_config.container_mode():connections.start()
     ThreadingHTTPServer(('0.0.0.0' if runtime_config.container_mode() else '127.0.0.1',PORT),Handler).serve_forever()

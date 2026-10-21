@@ -99,6 +99,12 @@ WorkplaceContainer.outboundByHost = {
 };
 
 export default {
+  async scheduled(controller, env, ctx) {
+    const response = await getContainer(env.WORKPLACE_CONTAINER, 'workplace-v1').fetch(new Request(env.PUBLIC_ORIGIN + '/internal/android-maintenance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Yifun-Internal-Schedule': 'android-ops-v1' }, body: '{}'
+    }));
+    if (!response.ok) throw new Error('Android scheduled maintenance failed: HTTP ' + response.status);
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.origin !== env.PUBLIC_ORIGIN) return new Response('Invalid site origin', { status: 403 });

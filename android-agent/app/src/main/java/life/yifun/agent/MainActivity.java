@@ -23,7 +23,7 @@ public class MainActivity extends Activity {
         bind=new Button(this);bind.setText("绑定本机");layout.addView(bind);bind.setOnClickListener(v->perform(true));
         send=new Button(this);send.setText("立即同步状态");layout.addView(send);send.setOnClickListener(v->perform(false));
         status=new TextView(this);status.setPadding(0,pad,0,0);layout.addView(status);
-        TextView note=new TextView(this);note.setText("\n前台每 60 秒同步；后台由安卓系统调度，可能延迟。\n本版本不执行安装、重启或远程控制。\n绑定凭证保存在应用私有空间，卸载或清除数据后需重新绑定。");layout.addView(note);
+        TextView note=new TextView(this);note.setText("\n前台每 60 秒同步；后台由安卓系统调度，可能延迟。\n本版本可接收配置同步、管理端诊断任务；安装和重启需接入设备厂商适配器。\n绑定凭证保存在应用私有空间，卸载或清除数据后需重新绑定。");layout.addView(note);
         ScrollView scroll=new ScrollView(this);scroll.addView(layout);setContentView(scroll);refresh();Agent.schedule(this);
     }
     private void refresh(){boolean b=Agent.bound(this);code.setVisibility(b?View.GONE:View.VISIBLE);bind.setVisibility(b?View.GONE:View.VISIBLE);send.setEnabled(b&&!running);long last=Agent.prefs(this).getLong("last_success",0);status.setText(b?"已绑定设备："+Agent.prefs(this).getString("device_id","")+"\n游戏包名："+Agent.prefs(this).getString("package_name","")+"\n最近同步："+(last==0?"等待首次上报":java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(last))):"尚未绑定。请先在软件中心登记产品并签发绑定码。");}

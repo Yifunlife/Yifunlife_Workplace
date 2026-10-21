@@ -3,9 +3,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <queries><intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent></queries>
+    <permission android:name="life.yifun.agent.permission.GAME_BRIDGE" android:protectionLevel="signature"/>
     <application android:label="亦玩设备管理" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
         <service android:name=".HeartbeatJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <receiver android:name=".GameBridgeReceiver" android:exported="true" android:permission="life.yifun.agent.permission.GAME_BRIDGE">
+            <intent-filter><action android:name="life.yifun.agent.REPORT_EVENT"/><action android:name="life.yifun.agent.GET_CONFIG"/></intent-filter>
+        </receiver>
         <receiver android:name=".BootReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
     </application>
 </manifest>
