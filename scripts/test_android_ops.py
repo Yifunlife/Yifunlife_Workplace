@@ -108,6 +108,13 @@ with tempfile.TemporaryDirectory() as tmp:
  assert admin('resource-state',{'id':entitlement,'revision':r['revision']+1,'state':'disabled'})[0]==409
  assert admin('resource-state',{'id':entitlement,'revision':r['revision'],'state':'disabled'})[0]==200
  assert sync('sync-request-0012')[2]['config']['features']==[]
+ assert sync('sync-request-0013',[{'event_id':'nan-event','category':'game','data':{'score':float('nan')}}])[0]==400
+ expired=resource('entitlement',device_id=d,resource_id=feature,expires_at=time.time()+1000)['id']
+ with database.connect() as db:
+  r=ops.resource(db,expired);r['data']['expires_at']=time.time()-1;db.execute('UPDATE android_resources SET data=? WHERE id=?',(ops.dump(r['data']),expired))
+ r=next(r for r in snapshot()['resources'] if r['id']==expired)
+ assert admin('resource-state',{'id':expired,'revision':r['revision'],'state':'disabled'})[0]==200
+
  original_resolver=ops.socket.getaddrinfo
  ops.socket.getaddrinfo=lambda *a,**k:[(2,1,6,'',('127.0.0.1',443))]
  try:

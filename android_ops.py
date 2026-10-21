@@ -126,7 +126,13 @@ def save(db,user,p):
 
 def change_state(db,user,p):
  r=resource(db,p.get('id'));scope(db,user,r['customer_id'])
- return save(db,user,{**r['data'],'kind':r['kind'],'product_id':r['product_id'],'customer_id':r['customer_id'],'device_id':r['device_id'],'id':r['id'],'revision':p.get('revision'),'state':p.get('state')})
+ if type(p.get('revision')) is not int or p['revision']!=r['revision']:raise c.Problem('资料版本已改变',409)
+ state=p.get('state')
+ if state not in ('active','disabled','draft'):raise c.Problem('状态无效')
+ if state!='active':
+  db.execute('UPDATE android_resources SET state=?,revision=revision+1,updated_at=? WHERE id=?',(state,c.now(),r['id']))
+  c.audit(db,user,'android_'+r['kind'],r['id'],'调整资料状态',{'state':state});return {'ok':True}
+ return save(db,user,{**r['data'],'kind':r['kind'],'product_id':r['product_id'],'customer_id':r['customer_id'],'device_id':r['device_id'],'id':r['id'],'revision':p.get('revision'),'state':state})
 
 def config(db,d):
  stamp=time.time();features=[];contents=[]
