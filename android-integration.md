@@ -54,3 +54,9 @@ request_id 在请求失败后保持不变，直到响应及本地状态落盘。
 员工 GET `/api/software` 获取权限范围内资料；POST `/api/software/action/resource` / `resource-state` / `task` / `task-action` 使用现有员工会话、CSRF 和栏目写权限。资源修改须携带 revision；产品、客户、设备归属不允许静默更换。所有管理操作记入集团审计。
 
 云端 Cron 每分钟从 Worker 直接访问私有容器 `/internal/android-maintenance`；公开 Worker 拒绝所有 /internal/ 路径，内部标记不是公网凭证。维护包含任务租约回收、告警创建与恢复、过期事件清理和回调 outbox。查看 scheduler_last_run 可确认定时任务实际运行；新调度配置传播可能有延迟。
+
+## 已收到的现场基线
+
+安卓板型号 GB-RK3588，芯片 RK3588，系统 Android 12（API 31）。CPU ABI 由管理 APK 实际上报，不仅根据芯片型号推断系统位数。
+
+公司文件命名为 YW_游戏名称_版本号_日期.apk，已提供示例 Yw_Airconveyor_V1.0.0.260406.apk。原始文件名独立保存，不从文件名猜安卓包名、versionCode、签名证书或 APK 内部真实版本；这些值应从真实 APK 读取。还需真实 APK 或实际包名/签名、板卡厂商管理 SDK 和真机验收。

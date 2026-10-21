@@ -18,7 +18,9 @@ DDL=[
 
 def init(db):
  for sql in DDL:db.execute(sql)
-def dump(v):return json.dumps(v,ensure_ascii=False,separators=(',',':'))
+def dump(v):
+ try:return json.dumps(v,ensure_ascii=False,separators=(',',':'),allow_nan=False)
+ except (TypeError,ValueError):raise c.Problem('资料包含无效的 JSON 数值或类型')
 def txt(p,k,label,required=True,limit=200):return c.text(p.get(k,''),label,required=required,limit=limit)
 def integer(p,k,minimum,maximum,default=None):
  v=p.get(k,default)
@@ -84,6 +86,9 @@ def save(db,user,p):
    if kind=='package':
     cert=txt(p,'certificate_sha256','签名证书 SHA-256').lower()
     if not __import__('re').fullmatch('[a-f0-9]{64}',cert):raise c.Problem('签名证书 SHA-256 应为 64 位十六进制')
+    file_name=txt(p,'file_name','原始 APK 文件名',False,255)
+    if file_name and ('/' in file_name or '\\' in file_name or not file_name.lower().endswith('.apk')):raise c.Problem('请填写 APK 文件名，不要填写完整路径')
+    data['file_name']=file_name
     data.update(version_code=integer(p,'version_code',1,2100000000),min_sdk=integer(p,'min_sdk',26,100),certificate_sha256=cert,package_name=c.need(db,'android_products',product)['package_name'],verification='待设备下载、文件校验和签名核验')
    else:
     if p.get('pricing','free') not in ('free','paid'):raise c.Problem('请选择免费或付费内容')
@@ -297,7 +302,7 @@ def snapshot(db,user,ids):
  for e in events:e['data']=json.loads(e['data'])
  hook_ids={r['id'] for r in resources if r['kind']=='webhook'}
  deliveries=[{k:r[k] for k in ('id','webhook_id','state','attempts','next_at','last_result','created_at')} for r in db.execute('SELECT * FROM android_deliveries ORDER BY created_at DESC LIMIT 200') if r['webhook_id'] in hook_ids]
- return {'resources':resources,'tasks':tasks,'events':events,'alerts':records('android_alerts'),'deliveries':deliveries,'task_types':list(TASKS),'protocol_version':2,'scheduler_last_run':float((c.row(db,"SELECT value FROM settings WHERE key='android_ops_last_run'") or {}).get('value',0))}
+ return {'resources':resources,'tasks':tasks,'events':events,'alerts':records('android_alerts'),'deliveries':deliveries,'task_types':list(TASKS),'protocol_version':2,'deployment_baseline':{'board_model':'GB-RK3588','chipset':'RK3588','android_version':'12','sdk_int':31,'apk_naming':'YW_游戏名称_版本号_日期.apk'},'scheduler_last_run':float((c.row(db,"SELECT value FROM settings WHERE key='android_ops_last_run'") or {}).get('value',0))}
 
 class PinnedHTTPS(http.client.HTTPSConnection):
  def __init__(self,host,address):

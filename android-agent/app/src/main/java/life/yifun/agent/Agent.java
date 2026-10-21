@@ -30,6 +30,7 @@ public final class Agent {
     static boolean bound(Context c) { return prefs(c).contains("device_id"); }
     static JSONObject telemetry(Context c) throws Exception {
         JSONObject t=new JSONObject();
+        t.put("board",Build.BOARD).put("hardware",Build.HARDWARE).put("supported_abis",new org.json.JSONArray(java.util.Arrays.asList(Build.SUPPORTED_ABIS)));
         t.put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL).put("android_version",Build.VERSION.RELEASE).put("sdk_int",Build.VERSION.SDK_INT).put("agent_version","0.2.0");
         DevicePolicyManager dm=(DevicePolicyManager)c.getSystemService(Context.DEVICE_POLICY_SERVICE);
         boolean owner=dm!=null && dm.isDeviceOwnerApp(c.getPackageName());

@@ -65,17 +65,23 @@ def action(db,user,name,p):
         db.execute('UPDATE '+table+" SET state='revoked' WHERE id=?",(key,))
         if kind=='enrollment':db.execute("UPDATE android_devices SET state='revoked' WHERE enrollment_id=?",(key,))
         else:db.execute("UPDATE android_enrollments SET state='revoked' WHERE id=?",(record['enrollment_id'],))
+        target_ids=[r['id'] for r in db.execute('SELECT id FROM android_devices WHERE enrollment_id=?',(key,))] if kind=='enrollment' else [key]
+        for device_id in target_ids:
+            db.execute("UPDATE android_tasks SET state=CASE WHEN state='running' THEN 'failed' ELSE 'cancelled' END,lease_hash=NULL,lease_until=NULL,result=?,updated_at=? WHERE device_id=? AND state IN ('draft','waiting_adapter','queued','running')",(android_ops.dump({'error':'设备绑定已撤销，未确认操作须人工核对','outcome_unknown':True}),c.now(),device_id))
         c.audit(db,user,'android_'+kind,key,'撤销安卓绑定',{});return {'ok':True}
     raise c.Problem('接口不存在',404)
 
 def report(p):
     raw=p.get('telemetry',{})
     if not isinstance(raw,dict):raise c.Problem('设备状态格式不正确')
-    allowed=('manufacturer','model','android_version','sdk_int','agent_version','app_version','app_version_code','device_owner','managed_install','reboot','package_name','protocol_version','supported_tasks')
+    allowed=('manufacturer','model','android_version','sdk_int','agent_version','app_version','app_version_code','device_owner','managed_install','reboot','package_name','protocol_version','supported_tasks','supported_abis','board','hardware')
     result={}
     for key in allowed:
         value=raw.get(key)
         if value is None:continue
+        if key=='supported_abis':
+            if not isinstance(value,list) or len(value)>8 or any(not isinstance(v,str) or not 1<=len(v)<=40 for v in value):raise c.Problem('CPU 架构信息无效')
+            result[key]=value;continue
         if key=='supported_tasks':
             if not isinstance(value,list) or len(value)>20 or any(v not in android_ops.TASKS for v in value):raise c.Problem('任务能力清单无效')
             result[key]=list(dict.fromkeys(value));continue
