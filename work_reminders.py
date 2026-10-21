@@ -40,6 +40,8 @@ def report(db, user, center=None, project=None, today=None):
 
     def add(source, key, title, page, pid=None, owner=None, due=None, scope=(),
             status='', blocked=False, note='', personal=False, module_link=''):
+        import column_permissions as cp
+        if cp.level(db,user,page)==0:return
         if pid and pid not in projects: return
         if project and pid != project: return
         scope = set(scope)

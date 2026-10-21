@@ -27,6 +27,8 @@ def projects(db,user):
     return [dict(r) for r in db.execute('SELECT p.id,p.name,p.customer_id,p.location,c.name customer,c.contact,c.phone,c.email FROM projects p JOIN customers c ON c.id=p.customer_id ORDER BY p.name') if access.visible_project(db,user,r['id'])]
 
 def bootstrap(db,user):
+    import column_permissions as cp
+    if user:cp.require(db,user,'center-aftersales-workflow')
     if not user:raise core.Problem('请先登录统一工作平台',401)
     p=projects(db,user)
     team=[{'id':r['id'],'name':r['name'],'role':role(db,dict(r))} for r in db.execute("SELECT id,name,role,status,email FROM employees WHERE status='active'")]
@@ -34,7 +36,7 @@ def bootstrap(db,user):
     aftercare_sync.refresh(db)
     import aftercare_internal
     internal=aftercare_internal.context(db,user)
-    context={'masters':aftercare_sync.masters(db,user),'internal':internal,'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user)}
+    context={'masters':aftercare_sync.masters(db,user),'internal':internal,'user':profile(db,user),'projects':p,'team':team,'csrf':user['csrf'],'readOnly':runtime_config.read_only(user) or cp.level(db,user,'center-aftersales-workflow')<2}
     return ('window.__AFTERCARE_CONTEXT__='+json.dumps(context,ensure_ascii=False).replace('<','\\u003c')+';window.__EMPLOYEE__=window.__AFTERCARE_CONTEXT__.user;').encode()
 
 def tables_exist(db):return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='af2_customer_work_items'").fetchone())
@@ -185,6 +187,9 @@ def handle(db,user,path,method,body=b'',headers=None,origin='http://127.0.0.1:89
     headers=dict(headers or {});route=urlparse(path).path.removeprefix('/api/aftercare/')
     public=route in ('portal','submit') or (route.startswith('file/') and bool(parse_qs(urlparse(path).query).get('token')))
     if not public and not user:raise core.Problem('请先登录统一工作平台',401)
+    if user and not public:
+        import column_permissions as cp
+        cp.require(db,user,'center-aftersales-workflow',method!='GET')
     if user and user['role']=='supplier':raise core.Problem('没有售后访问权限',403)
     if method!='GET' and not public:
         if runtime_config.read_only(user) or user['role']=='ceo':raise core.Problem('当前账号仅可查看',403)

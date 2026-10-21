@@ -100,6 +100,8 @@ def history_changes(db,page,before,after):
     return [{'label':label,'before':display(key,before.get(key),before),'after':display(key,after.get(key),after)} for key,label in labels.items() if key in after and before.get(key)!=after.get(key)]
 
 def execute(db,user,action,p):
+    import column_permissions as cp
+    if action!='members':cp.write_guard(db,user,cp.center_action(action,p))
     if action in ('aftersales-expense','aftersales-expense-void'):
         import aftersales_expenses
         return aftersales_expenses.save(db,user,p) if action=='aftersales-expense' else aftersales_expenses.void(db,user,p)

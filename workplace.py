@@ -1,3 +1,4 @@
+import column_permissions as cp
 """Local unified Workplace service. Bind to loopback; no production credentials."""
 import hashlib,hmac,json,secrets,time,sqlite3,mimetypes,logging,os
 from http.cookies import SimpleCookie
@@ -149,6 +150,10 @@ class Handler(BaseHTTPRequestHandler):
             if not user:raise core.Problem('请先登录统一工作平台',401)
             if runtime_config.read_only(user) and path not in ('/api/auth/logout','/api/context','/api/password'):raise core.Problem('共享账号仅可查看',403)
             if not self.bridge() and not hmac.compare_digest(self.headers.get('X-Yifun-Token',''),user['csrf']):raise core.Problem('会话已失效，请刷新后重试',403)
+            if path=='/api/column-permissions':
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE');result=cp.save(db,user,p)
+                return self.respond(200,result)
             if path=='/api/auth/logout':
                 with database.connect() as db:db.execute('DELETE FROM employee_sessions WHERE token_hash=?',(user['token_hash'],))
                 self.cookie_out=runtime_config.session_cookie('', 0);return self.respond(200,{'ok':True})
@@ -210,6 +215,8 @@ class Handler(BaseHTTPRequestHandler):
                 import threading
                 threading.Thread(target=connections.sync,daemon=True).start()
                 return self.respond(202,{'ok':True})
+            if path.startswith('/api/connections/'):
+                with database.connect() as db:cp.require(db,user,'connections',True)
             if path=='/api/connections/quote-context':
                 core.permit(user,'admin','ceo','sales')
                 with database.connect() as db:
@@ -275,7 +282,10 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith('/aftercare/'):
             names={'/aftercare/workspace':'workflow.html','/aftercare/customers':'customers.html','/aftercare/request':'request.html'}
             customer_public=path=='/aftercare/request' or path in ('/aftercare/public/request.js','/aftercare/public/portal.css')
-            if not customer_public and not self.session():raise core.Problem('请先登录统一工作平台',401)
+            if not customer_public:
+                user=self.session()
+                if not user:raise core.Problem('请先登录统一工作平台',401)
+                with database.connect() as db:cp.require(db,user,'center-aftersales-workflow')
             name=names.get(path) or path.removeprefix('/aftercare/public/')
             target=(aftercare.HOME/'public'/name).resolve()
             if not target.is_relative_to((aftercare.HOME/'public').resolve()) or not target.is_file():raise core.Problem('页面不存在',404)
@@ -297,16 +307,21 @@ class Handler(BaseHTTPRequestHandler):
                     setup=not db.execute('SELECT 1 FROM employees WHERE email=?',(identity,)).fetchone()
                     if identity!=runtime_config.owner_email() and not db.execute("SELECT 1 FROM employees WHERE email=? AND role='admin' AND status='active'",(runtime_config.owner_email(),)).fetchone():raise core.Problem('管理员尚未初始化站点账号',409)
                 department_centers=centers.available(db,user) if user else []
+                column_levels=cp.levels(db,user) if user else {}
                 test_accounts_ready=False
                 if runtime_config.container_mode() and os.environ.get("YIFUN_DEMO_MODE")=="1":
                     import test_accounts
                     exists=db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='demo_credential_migrations'").fetchone()
                     test_accounts_ready=bool(exists and db.execute("SELECT 1 FROM demo_credential_migrations WHERE name=?",(test_accounts.MARKER,)).fetchone())
                 shared_demo_ready=bool(os.environ.get('YIFUN_DEMO_MODE')=='1' and db.execute("SELECT 1 FROM settings WHERE key='shared_department_demo_20261014_v2'").fetchone())
-            return self.respond(200,{'shared_demo_ready':shared_demo_ready,'test_accounts_ready':test_accounts_ready,'verified_email':identity,'cloud':runtime_config.container_mode(),'read_only':runtime_config.read_only(user) if user else runtime_config.container_mode() and identity!=runtime_config.owner_email(),'module_urls':runtime_config.module_urls(),'authenticated':bool(user),'needsSetup':setup,'user':public(user) if user else None,'csrf':user['csrf'] if user else None,'project_id':user['project_id'] if user else None,'modules':ROLES.get(user['role'],[]) if user else [],'centers':department_centers})
+            return self.respond(200,{'shared_demo_ready':shared_demo_ready,'test_accounts_ready':test_accounts_ready,'verified_email':identity,'cloud':runtime_config.container_mode(),'read_only':runtime_config.read_only(user) if user else runtime_config.container_mode() and identity!=runtime_config.owner_email(),'module_urls':runtime_config.module_urls(),'authenticated':bool(user),'needsSetup':setup,'user':public(user) if user else None,'csrf':user['csrf'] if user else None,'project_id':user['project_id'] if user else None,'modules':ROLES.get(user['role'],[]) if user else [],'centers':department_centers,'column_levels':column_levels})
         if not user:raise core.Problem('请先登录统一工作平台',401)
+        if path=='/api/column-permissions':
+            with database.connect() as db:result=cp.management(db,user)
+            return self.respond(200,result)
         if path=='/api/connections':
             with database.connect() as db:
+                cp.any_read(db,user,['connections','connections-sales'])
                 result=connections.status(db,user,parse_qs(urlparse(self.path).query).get('project',[None])[0])
             return self.respond(200,result)
         if path=='/api/connections/sales-project':
@@ -321,6 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             module=parse_qs(urlparse(self.path).query).get('module',[''])[0]
             if module not in ROLES[user['role']]:raise core.Problem('没有此中心的使用权限',403)
             with database.connect() as db:
+                cp.require(db,user,cp.canonical(module),parse_qs(urlparse(self.path).query).get('method',['GET'])[0] not in ('GET','HEAD'))
                 enabled=core.setting(db,'finance_enabled')=='1'
                 if user['role']=='finance' and not enabled:raise core.Problem('财务功能暂未开放',403)
                 project=core.row(db,'SELECT p.*,c.name customer_name,c.contact,c.phone,c.email FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=?',(user['project_id'],))
@@ -353,12 +369,34 @@ class Handler(BaseHTTPRequestHandler):
         if path in ('/api/centers/dashboard','/api/centers/records'):
             query=parse_qs(urlparse(self.path).query);q=lambda key,default=None:query.get(key,[default])[0]
             with database.connect() as db:
-                result=centers.dashboard(db,user,q('center'),q('from'),q('to'),q('project'),q('currency','CNY')) if path.endswith('/dashboard') else centers.records(db,user,q('page'),q('project'))
+                if path.endswith('/dashboard'):
+                    column=q('column') or 'center-'+str(q('center'))
+                    permitted={'factory':{'center-factory','production-wood','production-upholstery','production-paint','production-metal'},'aftersales':{'center-aftersales','center-aftersales-issues'}}.get(q('center'),{'center-'+str(q('center'))})
+                    if column not in permitted:raise core.Problem('栏目不属于此中心',403)
+                    cp.require(db,user,column)
+                    result=centers.dashboard(db,user,q('center'),q('from'),q('to'),q('project'),q('currency','CNY'))
+                    if column.startswith('production-'):
+                        key=column.removeprefix('production-');production=result['production'];workshop=next(w for w in production['workshops'] if w['id']==key)
+                        fields=('id','project_id','name','number','shared_test','delivery_date','days','engineering_owner','workshop_progress','workshop_state','workshop_blocked','blocker_reason','issue')
+                        workshop['orders']=[{k:v for k,v in row.items() if k in fields} for row in workshop['orders']]
+                        production.update(engineering=None,orders=workshop['orders'],workshops=[workshop]);result['rows']=[]
+                    if cp.level(db,user,'center-aftersales-workflow')==0:result['aftersales_tasks']=[]
+                    elif cp.level(db,user,'center-aftersales-workflow')==1:
+                        for task in result.get('aftersales_tasks',[]):task['can_handle']=False
+                    if cp.level(db,user,'center-engineering')<2 or cp.level(db,user,'technical')<2:
+                        if result.get('engineering'):result['engineering']['can_edit']=False
+                        if result.get('production',{}):result['production']['engineering'] and result['production']['engineering'].update(can_edit=False)
+                    if result.get('production') and cp.level(db,user,'center-factory')<2:
+                        if result['production'].get('engineering'):result['production']['engineering']['can_edit']=False
+                else:
+                    cp.require(db,user,'center-marketing-spend' if q('page')=='spend' else 'center-design')
+                    result=centers.records(db,user,q('page'),q('project'))
             return self.respond(200,result)
         if path=='/api/centers/followups':
             query=parse_qs(urlparse(self.path).query);entity=query.get('entity',[''])[0];key=query.get('id',[''])[0]
             if entity not in ('leads','opportunities'):raise core.Problem('记录类型无效')
             with database.connect() as db:
+                cp.require(db,user,cp.ops_key(entity))
                 operations.get_record(db,user,entity,key)
                 items=[dict(r) for r in db.execute('SELECT f.*,e.name actor_name FROM crm_followups f JOIN employees e ON e.id=f.created_by WHERE entity=? AND entity_id=? ORDER BY contact_date DESC,f.created_at DESC,f.rowid DESC',(entity,key))]
             return self.respond(200,{'items':items})
@@ -372,7 +410,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200,r['content'],r['mime'])
         if path in ('/api/dashboard','/api/dashboard/export'):
             query=parse_qs(urlparse(self.path).query)
-            with database.connect() as db:result=ceo_dashboard.dashboard(db,user,query.get('from',[None])[0],query.get('to',[None])[0],project_id=query.get('project',[None])[0])
+            with database.connect() as db:
+                cp.require(db,user,'dashboard')
+                result=ceo_dashboard.dashboard(db,user,query.get('from',[None])[0],query.get('to',[None])[0],project_id=query.get('project',[None])[0])
             if path.endswith('/export'):
                 tab=query.get('tab',['overview'])[0]
                 content=ceo_dashboard.ceo_finance.export_csv(result,tab)
@@ -380,11 +420,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(200,content,'text/csv; charset=utf-8')
             return self.respond(200,result)
         if path=='/api/service-state':
-            with database.connect() as db:result=core.service_view(db,user)
+            with database.connect() as db:
+                cp.any_read(db,user,['center-aftersales','center-aftersales-issues','center-aftersales-workflow'])
+                result=core.service_view(db,user)
             return self.respond(200,result)
         if path=='/api/change-purchases':
             core.permit(user,'purchasing','sales','admin','ceo');key=parse_qs(urlparse(self.path).query).get('id',[''])[0]
             with database.connect() as db:
+                cp.require(db,user,'orders')
                 c=access.require(db,user,'order_changes',key)
                 items=[dict(r) for r in db.execute('SELECT i.id,i.product_name,i.quantity,i.unit_price,i.shipped_quantity,i.received_quantity,o.po_number FROM procurement_allocations a JOIN order_items i ON i.id=a.order_item_id JOIN purchase_orders o ON o.id=i.order_id WHERE a.baseline_line_id=? AND o.archived_at IS NULL',(c['baseline_line_id'],))]
             return self.respond(200,{'items':items})

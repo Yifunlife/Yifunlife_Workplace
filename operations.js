@@ -15,7 +15,7 @@ const opsProduct=id=>state.products.find(p=>p.id===id)?.name||'待核对产品';
 const opsMoney=(value,currency)=>value==null?'暂未接入':amount(value,currency);
 const opsOption=(id,name)=>({id,name});
 function workplaceCenters(){
- if(can('supplier'))return [{id:'procurement',name:'采购中心',pages:[['procurement','采购工作台']]}];
+ if(can('supplier'))return columnAccess('procurement')?[{id:'procurement',name:'采购中心',pages:[['procurement','采购工作台']]}]:[];
  const available=session.centers||[];
  const ids=[...new Set(available.map(id=>id==='projects'?'crm':id))];
  if(ids.includes('factory')){ids.splice(ids.indexOf('factory'),1);const before=ids.indexOf('procurement');const stock=ids.indexOf('stock');ids.splice(before>=0?before+1:stock>=0?stock:ids.length,0,'factory');}
@@ -26,7 +26,7 @@ function workplaceCenters(){
   }
   if(id==='quote')return {id,name:'核算中心',pages:centerPages('quote').map(([page,label])=>[page,page==='center-quote'?'核算看板':label])};
   return {id,name:CENTER_NAMES[id],pages:centerPages(id)};
- });
+ }).map(center=>({...center,pages:center.pages.filter(([id])=>columnAccess(id)),...(center.groups?{groups:center.groups.map(g=>({...g,pages:g.pages.filter(([id])=>columnAccess(id))})).filter(g=>g.pages.length)}:{})})).filter(center=>center.pages.length);
 }
 
 function sectionForView(page){

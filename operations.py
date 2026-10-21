@@ -96,6 +96,8 @@ def unreserved(db,product,quantity):
     if available[0]-available[1]+quantity < -1e-6:raise c.Problem('操作后可用库存不足，已有客户或售后占用')
 
 def view(db,user,page,project=None):
+    import column_permissions as cp
+    if page!='lookups':cp.require(db,user,cp.ops_key(page))
     c.permit(user,*INTERNAL)
     if project:project_check(db,user,project)
     import centers
@@ -110,10 +112,10 @@ def view(db,user,page,project=None):
         projects=[dict(r) for r in db.execute('SELECT p.id,p.code,p.name FROM projects p') if access.visible_project(db,user,r['id'])]
         ids={p['id'] for p in projects}
         employees=[dict(r) for r in db.execute("SELECT id,name,role FROM employees WHERE status='active' AND role!='supplier'") if user['role'] in MANAGERS or r['id']==user['id'] or any(access.visible_project(db,dict(r),p) for p in ids)]
-        deliveries=[dict(r) for r in db.execute('SELECT l.*,d.project_id,d.number FROM delivery_lines l JOIN deliveries d ON d.id=l.delivery_id') if r['project_id'] in ids]
+        deliveries=[dict(r) for r in db.execute('SELECT l.*,d.project_id,d.number FROM delivery_lines l JOIN deliveries d ON d.id=l.delivery_id') if r['project_id'] in ids] if any(cp.level(db,user,k)>0 for k in ('inventory','installation','warehouse')) else []
         if marketing:
             employees=list({e['id']:e for e in [*employees,*[dict(r) for r in db.execute("SELECT id,name,role FROM employees WHERE status='active' AND role='sales'")]]}.values())
-        return {'employees':employees,'deliveries':deliveries,'locations':[dict(r) for r in db.execute('SELECT * FROM warehouse_locations ORDER BY warehouse,code')], 'leads':list_rows(db,user,'leads') if user['role'] in (*MANAGERS,'sales') or marketing else [],'enabled':c.setting(db,'finance_enabled')=='1'}
+        return {'employees':employees,'deliveries':deliveries,'locations':[dict(r) for r in db.execute('SELECT * FROM warehouse_locations ORDER BY warehouse,code')], 'leads':list_rows(db,user,'leads') if cp.level(db,user,'leads')>0 and (user['role'] in (*MANAGERS,'sales') or marketing) else [],'enabled':c.setting(db,'finance_enabled')=='1'}
     if page not in SPECS and page not in EXTRA_TABLES:raise c.Problem('页面不存在',404)
     result={'items':list_rows(db,user,page,project),'can_write':user['role'] in (SPECS[page][1] if page in SPECS else {'engineering':('engineering',),'returns':('sales','aftersales','installation','warehouse','purchasing'),'warehouse':('warehouse',),'counts':('warehouse',),'locations':('admin','warehouse')}[page]),'enabled':True}
     if page=='leads' and marketing:result['can_write']=True
@@ -134,7 +136,7 @@ def view(db,user,page,project=None):
             for task in centers.records(db,user,'design',project)['items']:
                 if task['status'] not in ('accepted','cancelled') and (user['role'] in MANAGERS or user['id'] in (task['owner_id'],task['created_by']) or (user['role']=='engineering' and task['status']=='handoff')):
                     related.append({'title':centers.DESIGN_STATES[task['status']]+' · '+task['title'],'project_id':task['project_id'],'owner_id':task['owner_id'],'due_date':task['due_date'],'page':'center-design-records'})
-        result['related']=related
+        result['related']=[r for r in related if cp.level(db,user,r['page'])>0]
     if page=='warehouse':
         result['balances']=[dict(r) for r in db.execute('SELECT m.product_id,m.location_id,p.name,p.sku,p.unit,l.warehouse,l.name location_name,l.usable,SUM(m.quantity) quantity FROM stock_movements m JOIN products p ON p.id=m.product_id JOIN warehouse_locations l ON l.id=m.location_id GROUP BY m.product_id,m.location_id HAVING ABS(SUM(m.quantity))>0.000001 ORDER BY l.warehouse,p.sku')]
     return result
@@ -348,7 +350,8 @@ def attach(db,user,p):
     c.audit(db,user,page,r['id'],'追加附件',{'attachment_id':key});return {'id':key}
 
 def file(db,user,key):
-    r=c.need(db,'operation_files',key);get_record(db,user,r['entity'],r['entity_id'])
+    import column_permissions as cp
+    r=c.need(db,'operation_files',key);cp.require(db,user,cp.ops_key(r['entity']));get_record(db,user,r['entity'],r['entity_id'])
     r['content']=object_storage.get(r['object_key']) if r.get('object_key') else r['content']
     return r
 
@@ -401,6 +404,8 @@ def imports(db,user,action,p):
     return {'imported':imported,'skipped':len(prepared)-imported}
 
 def execute(db,user,action,p):
+    import column_permissions as cp
+    cp.write_guard(db,user,cp.ops_action(action,p))
     c.permit(user,*INTERNAL)
     if action=='start-quote':
         c.permit(user,'sales')

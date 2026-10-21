@@ -134,3 +134,5 @@ if __name__ == "__main__":
 subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("test_employee_passwords.py"))],check=True)
 
 subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("build_aftercare_bundle.py")),"--check"],check=True)
+
+subprocess.run([sys.executable,str(Path(__file__).resolve().with_name("test_column_permissions.py"))],check=True)

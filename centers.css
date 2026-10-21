@@ -176,3 +176,7 @@
 .aftersales-original-workspace .aftercare-workflow-frame{border-radius:0;min-height:calc(100dvh - 72px);background:#fff}
 
 .shell.aftersales-original-view #center-sections{display:none!important}
+
+.account-tabs{display:flex;gap:12px;margin:12px 0 24px;border-bottom:1px solid var(--line);padding-bottom:10px}.account-tabs button[aria-current="page"]{background:#eaf1fb;color:#28578c;border-bottom:3px solid #f2bd00}.column-readonly{padding:16px 20px;border:1px solid #dce5f2;border-radius:12px;background:#edf3fc;color:#365777;line-height:1.8}.permission-column{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid var(--line)}.permission-column select{min-width:190px}.rail [hidden],#content [hidden],#center-sections [hidden]{display:none!important}
+
+.permission-column{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,2fr);align-items:center}.permission-column select{min-width:0;width:100%}@media(max-width:600px){.permission-column{grid-template-columns:1fr;gap:8px}}

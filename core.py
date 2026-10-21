@@ -148,6 +148,8 @@ def master_code(db,table,prefix):
     return prefix+str(number).zfill(4)
 
 def execute(db,user,action,p):
+    import column_permissions as cp
+    cp.write_guard(db,user,cp.core_action(action,p))
     if action=='projects' and 'new_customer' in p:
         permit(user,'admin','sales')
         if p.get('customer_id'):raise Problem('请选择已有客户或填写新客户，不能同时提交')
@@ -520,6 +522,8 @@ def project_records(db,user,records):
 
 def view(db,user,part,project=None):
     if project:access.require(db,user,'projects',project)
+    import column_permissions as cp
+    if part!='overview':cp.require(db,user,{'technical':'technical','finance':'finance','audit':'audit'}.get(part,part))
     result=_view_unscoped(db,user,part,project)
     if part=='overview':
         import connections
@@ -555,7 +559,7 @@ def view(db,user,part,project=None):
         result['notes']=[n for n in result['notes'] if n['entity_id'] in ids]
     elif part=='finance':
         result['items']=[b for b in result['items'] if access.visible_entity(db,user,'order_baselines',b['id'])]
-    return result
+    return cp.overview(db,user,result) if part=='overview' else result
 
 
 def service_view(db,user):
