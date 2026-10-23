@@ -17,6 +17,7 @@ import android_fleet
 import android_ops
 import aftercare
 import connections
+import api_registry
 import account_reporting
 import runtime_config
 import cloud_database
@@ -28,7 +29,7 @@ ROLES={'admin':['quote','procurement','aftersales'],'ceo':['quote','procurement'
 def init():
     database.init()
     with database.connect() as db:
-        android_fleet.init(db);android_ops.init(db)
+        android_fleet.init(db);android_ops.init(db);api_registry.init(db)
     with database.connect() as db:
         account_reporting.init(db)
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_requests(email TEXT PRIMARY KEY,requested_at REAL NOT NULL)')
@@ -227,6 +228,11 @@ class Handler(BaseHTTPRequestHandler):
                 salt=secrets.token_hex(16)
                 with database.connect() as db:db.execute('UPDATE employees SET password_hash=?,salt=? WHERE id=?',(password_hash(password(p.get('password')),salt),salt,user['id']));db.execute('DELETE FROM employee_sessions WHERE user_id=? AND token_hash!=?',(user['id'],user['token_hash']))
                 return self.respond(200,{'ok':True})
+            if path in ('/api/connections/registry/save','/api/connections/registry/delete'):
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    result=api_registry.action(db,user,path.rsplit('/',1)[-1],p)
+                return self.respond(200,result)
             if path=='/api/connections/sync':
                 core.permit(user,'admin')
                 import threading
@@ -335,6 +341,10 @@ class Handler(BaseHTTPRequestHandler):
         if not user:raise core.Problem('请先登录统一工作平台',401)
         if path=='/api/column-permissions':
             with database.connect() as db:result=cp.management(db,user)
+            return self.respond(200,result)
+        if path=='/api/connections/registry':
+            if not user:raise core.Problem('请先登录',401)
+            with database.connect() as db:result=api_registry.listing(db,user)
             return self.respond(200,result)
         if path=='/api/connections':
             with database.connect() as db:
