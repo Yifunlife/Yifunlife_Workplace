@@ -333,7 +333,7 @@ const collapsedReviewItems=new Set();
 const initializedReviewBatches=new Set();
 const persist=()=>{window.openai?.setWidgetState?.({modelContent:{页面:state.nav,筛选:state.filter,选中工单:state.selected},privateContent:state})?.catch(()=>{});queueCustomerCloudSave();};
 const icons=['layout-dashboard','clipboard-list','inbox','clipboard-check','drafting-compass','shopping-cart','factory','warehouse','wrench','wallet'];
-$('nav').innerHTML=navs.map((n,i)=>`<button type="button" class="cursor-interaction" data-nav="${n}"><i data-lucide="${icons[i]}" aria-hidden="true"></i>${esc(departmentName(n))}</button>`).join('');
+$('nav').innerHTML=navs.filter(n=>n==='售后驾驶舱').map((n,i)=>`<button type="button" class="cursor-interaction" data-nav="${n}"><i data-lucide="${icons[i]}" aria-hidden="true"></i>${esc(departmentName(n))}</button>`).join('');
 function iconsRefresh(){if(globalThis.lucide)lucide.createIcons({attrs:{width:15,height:15}})}
 iconsRefresh();
 const intakeSchema=JSON.parse(document.getElementById('yifun-intake-schema').textContent);
