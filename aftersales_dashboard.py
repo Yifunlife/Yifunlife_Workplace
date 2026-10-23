@@ -38,6 +38,7 @@ def save(db, user, p):
     ticket = access.require(db, user, 'service_tickets', p.get('id'))
     if ticket['version'] != p.get('version'): raise c.Problem('工单已被更新，请刷新后再登记', 409)
     payload = json.loads(ticket['payload'])
+    if payload.get('sourceSystem')=='yifun-aftersales':raise c.Problem('此工单请在独立售后工作台修改，再同步到总看板。',409)
     if payload.get('stage') in CLOSED: raise c.Problem('已关闭工单请在售后工作台核对', 409)
     stage = p.get('dashboard_stage') or ''
     if stage and stage not in STAGES: raise c.Problem('请选择有效流程阶段')
@@ -73,7 +74,9 @@ def report(db, user, projects, today):
     for raw in db.execute('SELECT * FROM service_tickets ORDER BY created_at DESC'):
         ticket = dict(raw); pid = ticket['project_id']
         if pid not in projects: continue
-        payload = json.loads(ticket['payload']); project = projects[pid]
+        payload = json.loads(ticket['payload'])
+        if payload.get('sourceRemoved'):continue
+        project = projects[pid]
         due = local_date(payload.get('dueDate')); stage = phase(payload); closed = stage=='已关闭'
         method = payload.get('executionMethod') or (payload.get('handling') if payload.get('handling') in METHODS else '')
         safety = payload.get('safetyLevel') or ''

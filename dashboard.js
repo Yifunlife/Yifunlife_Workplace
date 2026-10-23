@@ -35,11 +35,17 @@ function dashboardExportLink(){
   const params=new URLSearchParams({...dashboardPeriod,tab:dashboardTab});if(dashboardProject)params.set('project',dashboardProject);
   return `<a class="ceo-export" href="/api/dashboard/export?${esc(params.toString())}" download>导出当前明细</a>`;
 }
+let aftersalesSyncBusy=false;
+function aftersalesSyncNote(){
+ const s=dashboardData.aftersales_sync;if(!s?.enabled)return '';
+ return `<div class="ceo-note" role="status">售后数据：每天上海时间 08:00、18:00 自动同步 · ${s.last_success?'上次成功 '+esc(dashboardStamp(s.last_success))+' · '+Number(s.items||0)+' 条正式工单 · '+Number(s.pending_requests||0)+' 条待检查申请':'等待首次同步'}${s.error?' · '+esc(s.error):''} ${s.can_sync?button('dashboard-sync-aftersales',aftersalesSyncBusy?'同步中…':'立即同步','','secondary'):''}</div>`;
+}
 function dashboardPage(){
   const d=dashboardData;
   return head('CEO 总看板',dashboardTab==='overview'?'项目全生命周期经营总况':'财务模块 · 资金分析',`${dashboardExportLink()}${button('dashboard-fullscreen',document.fullscreenElement?'退出全屏':'全屏查看','','secondary')}`)+
   `<div class="ceo-toolbar"><nav class="ceo-tabs" aria-label="CEO 看板页面">${[['overview','经营总况'],['finance','财务资金分析']].map(([id,label])=>`<a href="/?${esc(new URLSearchParams({view:'dashboard',tab:id,...dashboardPeriod,...(dashboardProject?{scope:dashboardProject}:{})}).toString())}" data-action="dashboard-tab" data-id="${id}" ${id===dashboardTab?'aria-current="page"':''}>${label}</a>`).join('')}</nav><label>查看范围<select id="dashboard-project-filter"><option value="">全部项目</option>${d.project_options.map(p=>`<option value="${esc(p.id)}" ${p.id===dashboardProject?'selected':''}>${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select></label></div>`+
-  `<div class="dashboard-period"><form id="dashboard-period-form">${input('from','统计开始日期','date',d.period.from)}${input('to','截止日期','date',d.period.to)}<button class="secondary">应用日期</button>${button('dashboard-this-month','本月').replace('<button ','<button type="button" ')}</form><p>悉尼时间 · ${esc(dashboardStamp(d.updated_at))} 更新<br>${dashboardTab==='overview'?'阶段与预警为当前状态；本期金额按下单日期统计。':'账款按截止日期回看；采购结算与成本预算采用当前确认值。'}</p></div>`+
+  `<div class="dashboard-period"><form id="dashboard-period-form">${input('from','统计开始日期','date',d.period.from)}${input('to','截止日期','date',d.period.to)}<button class="secondary">应用日期</button>${button('dashboard-this-month','本月').replace('<button ','<button type="button" ')}</form><p>上海时间 · ${esc(dashboardStamp(d.updated_at))} 更新<br>${dashboardTab==='overview'?'阶段与预警为当前状态；本期金额按下单日期统计。':'账款按截止日期回看；采购结算与成本预算采用当前确认值。'}</p></div>`+
+  aftersalesSyncNote()+
   `<div class="ceo-board">${dashboardTab==='overview'?overviewBoard():financeBoard()}</div>${dashboardDrill()}`;
 }
 function overviewBoard(){
@@ -145,6 +151,12 @@ async function editMembers(id){
 }
 
 async function dashboardAction(name,id){
+  if(name==='dashboard-sync-aftersales'){
+    if(aftersalesSyncBusy)return true;aftersalesSyncBusy=true;drawDashboard();
+    try{await api('/api/connections/aftersales-sync',{});await render();notify('售后数据同步完成。');}
+    finally{aftersalesSyncBusy=false;if(view==='dashboard')drawDashboard();}return true;
+  }
+
   if(name==='members'){await editMembers(id);return true;}
   if(name==='dashboard-list'){dashboardList=dashboardList===id?'':id;dashboardUrl();drawDashboard();const target=$('#dashboard-drill')||$('#content');target.focus();target.scrollIntoView({block:'nearest'});return true;}
   if(name==='dashboard-tab'){dashboardTab=id==='finance'?'finance':'overview';dashboardList='';dashboardUrl();drawDashboard();$('#content').focus();return true;}

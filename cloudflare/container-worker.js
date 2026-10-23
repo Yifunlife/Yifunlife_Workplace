@@ -16,6 +16,7 @@ export class WorkplaceContainer extends Container {
       YIFUN_CONTAINER_MODE: '1', YIFUN_AUTH_MODE: env.AUTH_MODE || 'access', YIFUN_PUBLIC_ORIGIN: env.PUBLIC_ORIGIN,
       YIFUN_OWNER_EMAIL: env.OWNER_EMAIL, YIFUN_VIEWER_EMAILS: env.VIEWER_EMAILS,
       YIFUN_DATA_ROOT: '/tmp/workplace-runtime', YIFUN_DEMO_MODE: '1',
+      YIFUN_AFTERSALES_SYNC: env.AFTERSALES_REPORTING ? '1' : '0',
       YIFUN_DATABASE_BACKEND: 'cloudflare', YIFUN_DATABASE_ENDPOINT: 'http://database.yifun.internal',
       YIFUN_OBJECT_BACKEND: 'r2', YIFUN_OBJECT_ENDPOINT: 'http://objects.yifun.internal',
       WRANGLER_SEND_METRICS: 'false', NODE_ENV: 'production'
@@ -93,6 +94,7 @@ async function objectRequest(request, env, core = false) {
 }
 
 WorkplaceContainer.outboundByHost = {
+  'aftersales.yifun.internal': (request, env) => env.AFTERSALES_REPORTING.fetch(request),
   'database.yifun.internal': (request, env) => env.BUSINESS_DATABASE.getByName('workplace-business-v1').fetch(request),
   'objects.yifun.internal': (request, env) => objectRequest(request, env, true),
   'files.yifun.internal': (request, env) => objectRequest(request, env)

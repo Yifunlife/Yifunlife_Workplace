@@ -44,6 +44,7 @@ def tables_exist(db):return bool(db.execute("SELECT 1 FROM sqlite_master WHERE n
 def seed_legacy(db):
     """Copy existing tickets once, retaining their ID and their authoritative project."""
     for r in db.execute('SELECT t.*,p.name project_name,c.name customer_name FROM service_tickets t JOIN projects p ON p.id=t.project_id JOIN customers c ON c.id=p.customer_id').fetchall():
+        if json.loads(r['payload']).get('sourceSystem')=='yifun-aftersales':continue
         existing=db.execute('SELECT * FROM af2_customer_work_items WHERE id=?',(r['id'],)).fetchone()
         if existing:
             link=db.execute('SELECT core_version FROM af2_ticket_links WHERE ticket_id=?',(r['id'],)).fetchone()

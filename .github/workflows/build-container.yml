@@ -37,6 +37,8 @@ jobs:
         run: python3 prepare_source.py
       - name: Verify account permissions and authentication
         run: python3 scripts/test_cloud_auth.py
+      - name: Verify standalone aftersales reporting sync
+        run: python3 scripts/test_aftersales_cloud.py
       - name: Build image
         run: docker build -t yifunlife-workplace:${{ github.sha }} .
       - name: Verify container startup

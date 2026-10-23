@@ -53,6 +53,7 @@ def dashboard(db, user, start=None, end=None, at=None, project_id=None):
     closed_tickets = 0
     for r in db.execute('SELECT * FROM service_tickets ORDER BY created_at DESC'):
         payload = json.loads(r['payload'])
+        if payload.get('sourceRemoved'):continue
         if r['project_id'] not in projects:
             continue
         if payload.get('stage') == '关闭与复盘':

@@ -460,6 +460,7 @@ def service(db,user,action,p):
                 access.require(db,user,'service_tickets',key)
                 if old['version']!=version:raise Problem(f'售后单 {key} 已被他人更新，请刷新后合并修改',409)
                 prior=json.loads(old['payload'])
+                if prior.get('sourceSystem')=='yifun-aftersales':raise Problem('此工单由独立售后系统同步，请在原售后工作台修改。',409)
                 if payload.get('partsUsed',[])!=prior.get('partsUsed',[]):raise Problem('配件领用由仓库出库生成，不能手动覆盖')
                 if project['id']!=old['project_id']:raise Problem('已有售后单不能直接换项目')
             elif version!=0:raise Problem('售后记录不存在，请刷新',409)

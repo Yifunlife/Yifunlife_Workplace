@@ -13,5 +13,8 @@ with tarfile.open(archive) as tar:
             raise SystemExit('Invalid source archive member')
         if path.parts[0] not in {'modules','migrations','cloudflare','scripts'}:
             raise SystemExit('Unexpected source path')
-    tar.extractall(ROOT)
+    # The versioned Worker may be newer than the bundled module sources.
+    # Keep its private service bindings and scheduled handlers on rebuilds.
+    members=[m for m in tar.getmembers() if not (m.name=='cloudflare/container-worker.js' and (ROOT/m.name).is_file())]
+    tar.extractall(ROOT,members=members)
 print('Full workflow source restored: quote, procurement, aftersales and migrations')

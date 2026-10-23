@@ -16,6 +16,7 @@ import centers
 import android_fleet
 import android_ops
 import aftercare
+import aftersales_cloud
 import connections
 import api_registry
 import account_reporting
@@ -145,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/internal/android-maintenance':
                 # This route is blocked at the public Worker; only scheduled private container fetches reach it.
                 if not runtime_config.container_mode() or self.headers.get('X-Yifun-Internal-Schedule')!='android-ops-v1':raise core.Problem('接口不存在',404)
-                android_ops.run_once();return self.respond(200,{'ok':True})
+                android_ops.run_once();aftersales_cloud.refresh();return self.respond(200,{'ok':True})
             if path=='/internal/database':
                 if not self.bridge():raise core.Problem('来源无效',403)
                 return self.respond(200,{'results':database.d1_batch(p.get('statements'))})
@@ -233,6 +234,11 @@ class Handler(BaseHTTPRequestHandler):
                     db.execute('BEGIN IMMEDIATE')
                     result=api_registry.action(db,user,path.rsplit('/',1)[-1],p)
                 return self.respond(200,result)
+            if path=='/api/connections/aftersales-sync':
+                core.permit(user,'admin','ceo')
+                with database.connect() as db:cp.require(db,user,'dashboard')
+                aftersales_cloud.refresh(manual=True)
+                with database.connect() as db:return self.respond(200,aftersales_cloud.status(db,user))
             if path=='/api/connections/sync':
                 core.permit(user,'admin')
                 import threading
@@ -444,6 +450,7 @@ class Handler(BaseHTTPRequestHandler):
             with database.connect() as db:
                 cp.require(db,user,'dashboard')
                 result=ceo_dashboard.dashboard(db,user,query.get('from',[None])[0],query.get('to',[None])[0],project_id=query.get('project',[None])[0])
+                result['aftersales_sync']=aftersales_cloud.status(db,user)
             if path.endswith('/export'):
                 tab=query.get('tab',['overview'])[0]
                 content=ceo_dashboard.ceo_finance.export_csv(result,tab)
