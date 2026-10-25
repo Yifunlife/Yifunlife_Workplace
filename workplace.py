@@ -15,6 +15,7 @@ import username_login
 import centers
 import android_fleet
 import android_ops
+import software_work
 import aftercare
 import aftersales_cloud
 import connections
@@ -30,7 +31,7 @@ ROLES={'admin':['quote','procurement','aftersales'],'ceo':['quote','procurement'
 def init():
     database.init()
     with database.connect() as db:
-        android_fleet.init(db);android_ops.init(db);api_registry.init(db)
+        android_fleet.init(db);android_ops.init(db);software_work.init(db);api_registry.init(db)
     with database.connect() as db:
         account_reporting.init(db)
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_requests(email TEXT PRIMARY KEY,requested_at REAL NOT NULL)')
@@ -165,6 +166,10 @@ class Handler(BaseHTTPRequestHandler):
             if not user:raise core.Problem('请先登录统一工作平台',401)
             if runtime_config.read_only(user) and path not in ('/api/auth/logout','/api/context','/api/password'):raise core.Problem('共享账号仅可查看',403)
             if not self.bridge() and not hmac.compare_digest(self.headers.get('X-Yifun-Token',''),user['csrf']):raise core.Problem('会话已失效，请刷新后重试',403)
+            if path=='/api/software/work':
+                with database.connect() as db:
+                    db.execute('BEGIN IMMEDIATE');result=software_work.execute(db,user,p)
+                return self.respond(200,result)
             if path.startswith('/api/software/action/'):
                 with database.connect() as db:
                     db.execute('BEGIN IMMEDIATE');result=android_fleet.action(db,user,path.rsplit('/',1)[-1],p)
@@ -364,6 +369,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not record:raise core.Problem('客户尚未同步，请在连接资料中刷新后重试',404)
                 access.require(db,user,'customers',record['customer_id'])
             return self.respond(200,record)
+        if path=='/api/software/work':
+            if not user:raise core.Problem('请先登录统一工作平台',401)
+            with database.connect() as db:result=software_work.overview(db,user)
+            return self.respond(200,result)
         if path=='/api/software':
             if not user:raise core.Problem('请先登录统一工作平台',401)
             with database.connect() as db:result=android_fleet.overview(db,user)

@@ -36,7 +36,9 @@ jobs:
       - name: Restore verified workflow source
         run: python3 prepare_source.py
       - name: Verify account permissions and authentication
-        run: python3 scripts/test_cloud_auth.py
+        run: |
+          python3 scripts/test_cloud_auth.py
+          python3 scripts/test_software_work.py
       - name: Verify standalone aftersales reporting sync
         run: python3 scripts/test_aftersales_cloud.py
       - name: Build image

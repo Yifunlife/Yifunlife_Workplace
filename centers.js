@@ -29,7 +29,7 @@ async function renderCenter(el,id,generation){
   if(['product_rd','software','brand_visual'].includes(id)){
    el.classList.add('department-dashboard');
    const members=data.members||[];
-   el.innerHTML=head(CENTER_NAMES[id]+'总看板',CENTER_DESCRIPTIONS[id],can('admin')?button('center-manage-members','分配中心成员','','secondary'):'')+panel('中心成员 · '+members.length+' 人',members.length?table(['员工姓名','岗位'],members.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(roles[m.role]||m.role)}</td></tr>`)):empty('尚未分配中心成员','管理员可在“账号与权限 → 中心职责”中分配员工。'))+panel('业务工作区',empty('中心已建立','本中心业务流程待补充。员工姓名与集团账号保持同步。'));return;
+   el.innerHTML=head(CENTER_NAMES[id]+'总看板',CENTER_DESCRIPTIONS[id],can('admin')?button('center-manage-members','分配中心成员','','secondary'):'')+panel('中心成员 · '+members.length+' 人',members.length?table(['员工姓名','岗位'],members.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(roles[m.role]||m.role)}</td></tr>`)):empty('尚未分配中心成员','管理员可在“账号与权限 → 中心职责”中分配员工。'))+(id==='product_rd'?'<div id="rd-software-requests"></div>':panel('业务工作区',empty('中心已建立','本中心业务流程待补充。员工姓名与集团账号保持同步。')));if(id==='product_rd')renderSoftwareWork(el.querySelector('#rd-software-requests'),'rd');return;
   }
   const pages=centerPages(id).slice(1),actions=pages.map(([page,label])=>`<button class="secondary" data-view="${page}">${label}</button>`).join('');
   const scope=project&&id!=='marketing'?projectName(project):can('admin','ceo')?'全部授权业务':'我的授权业务';
@@ -398,7 +398,7 @@ const menus={'工作台':['总览']};
 const states={draft:'草稿',active:'已启用',disabled:'已停用',waiting_adapter:'待接入执行器',queued:'已下发待领取',running:'执行中',succeeded:'已确认完成',failed:'失败',unsupported:'设备不支持',cancelled:'已取消',pending:'待处理',retry:'等待重试',sending:'发送中',delivered:'已送达',open:'待处理',resolved:'已恢复'};
 const taskNames={sync_config:'同步配置',collect_agent_logs:'采集管理端诊断',install_apk:'安装 APK',rollback_apk:'恢复指定版本',restart_app:'重启游戏应用',reboot:'重启安卓板',sync_content:'下载内容包'};
 let selected='工作台',tab='总览',data=null,busy=false,notice='',oneTime='',secret='',editing=null,draftValues=null;
-el.innerHTML='<div id="unified-sc"><div class="window"><header><span class="mark">亦</span><span class="brandname">亦玩技术软件中心</span><span class="caption">产品、授权、发布与运维</span></header><div class="shell"><aside id="usc-nav"></aside><main><div class="heading"><button class="smallbutton" data-usc-refresh>更新状态</button></div><div class="tabs" id="usc-tabs"></div><div id="usc-notice" aria-live="polite"></div><div id="usc-content"></div></main></div></div></div>';
+el.innerHTML='<div id="unified-sc"><div class="window"><header><span class="mark">亦</span><span class="brandname">亦玩技术软件中心</span><span class="caption">研发需求、工程师排期与任务进度</span></header><div class="shell"><aside id="usc-nav"></aside><main><div class="heading"><button class="smallbutton" data-usc-refresh>更新状态</button></div><div class="tabs" id="usc-tabs"></div><div id="usc-notice" aria-live="polite"></div><div id="usc-content"></div></main></div></div></div>';
 const root=el.querySelector('#unified-sc'),find=s=>root.querySelector(s),text=v=>esc(String(v??'—'));
 const date=v=>v?new Date(typeof v==='number'?v*1000:v).toLocaleString('zh-CN'):'—';
 const customer=id=>data.customers.find(p=>p.id===id)?.name||id;
@@ -425,7 +425,8 @@ function taskForm(update){const kinds=Object.fromEntries(Object.entries(taskName
 function deviceList(){return tbl(['设备','客户 / 场地','产品','Android / 应用','连接状态','最后上报'],data.devices.map(d=>[text(d.label),text(customer(d.customer_id)+' / '+d.site),text(product(d.product_id)),text((d.telemetry.android_version||'—')+' / '+(d.telemetry.app_version||'未知')),text(d.state==='revoked'?'已撤销':{online:'在线',recent:'近期连接',offline:'长时间未上报'}[d.connection]),text(date(d.last_seen))]));}
 function render(){find('#usc-nav').innerHTML=Object.keys(menus).map(m=>'<button class="nav '+(m===selected?'active':'')+'" data-usc-menu="'+m+'">'+m+'</button>').join('');find('#usc-tabs').innerHTML=menus[selected].map(t=>'<button class="'+(t===tab?'active':'')+'" data-usc-tab="'+t+'">'+t+'</button>').join('');find('#usc-notice').textContent=notice;if(!data){find('#usc-content').innerHTML=hint('正在读取业务数据…');return;}
 let html='';
-if(tab==='总览'||tab==='设备统计')html='<div class="stats">'+[['安卓产品',data.products.length],['已绑定设备',data.devices.filter(d=>d.state==='active').length],['待处理任务',data.tasks.filter(t=>['queued','running','waiting_adapter'].includes(t.state)).length],['当前告警',data.alerts.filter(a=>a.state==='open').length]].map(a=>'<div class="stat"><span class="caption">'+a[0]+'</span><div class="value">'+a[1]+'</div></div>').join('')+'</div>'+hint('配置、文件和任务分开管理：登记资料 → 设备适配 → 人工下发 → 设备回执。未接通的能力保留在待接入状态。')+box('真实设备状态',deviceList());
+if(tab==='总览'){find('#usc-content').innerHTML='<div id="software-work-board"></div>';renderSoftwareWork(find('#software-work-board'));return;}
+else if(tab==='设备统计')html=box('设备状态',deviceList());
 else if(tab==='安卓产品')html=box('登记安卓产品',form('product',input('name','产品名称')+input('package_name','游戏 APK 包名','com.company.game'),'保存产品'))+box('产品列表',tbl(['产品','包名'],data.products.map(p=>[text(p.name),text(p.package_name)])));
 else if(tab==='场地管理')html=box('新增场地',resourceForm('site',options('customer_id','集团客户',data.customers)+input('name','场地 / 门店名称')+input('address','地址','','text',false)+input('contact','联系人','','text',false)))+box('场地列表',records('site',['客户','场地','地址','联系人'],r=>[text(customer(r.customer_id)),text(r.data.name),text(r.data.address),text(r.data.contact)]));
 else if(tab==='功能定义')html=box('新增产品功能',resourceForm('feature',options('product_id','产品',data.products)+input('name','功能名称','例如：赛事模式')+input('key','功能标识','例如：tournament')))+box('产品功能',records('feature',['产品','名称','标识'],r=>[text(product(r.product_id)),text(r.data.name),text(r.data.key)]));
@@ -454,3 +455,37 @@ root.addEventListener('submit',async e=>{const f=e.target.closest('[data-usc-for
 render();reload().catch(err=>{find('#usc-content').textContent='读取失败：'+err.message;});
 }
 
+
+function renderSoftwareWork(el,mode='software'){
+let data=null,busy=false,error='',draft=null,requestId=crypto.randomUUID();
+el.innerHTML='<section class="sw-work"><div class="sw-toolbar"><strong>'+(mode==='rd'?'提交给软件部的研发需求':'产品研发 → 软件开发任务')+'</strong><button class="secondary" data-sw-refresh>更新进度</button></div><div class="sw-error" aria-live="polite"></div><div class="sw-body">正在读取任务…</div></section>';
+const root=el.querySelector('.sw-work'),body=root.querySelector('.sw-body'),err=root.querySelector('.sw-error'),safe=v=>esc(String(v??'—'));
+const stamp=v=>v?new Date(v*1000).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'尚未开始';
+const name=id=>data.employees.find(e=>e.id===id)?.name||'待安排';
+const table=(headers,rows)=>rows.length?'<div class="sw-table"><table><thead><tr>'+headers.map(h=>'<th>'+safe(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>':'<p class="sw-empty">尚无任务。产品研发提交需求后，会显示在这里。</p>';
+const clock=(seconds,running)=>'<span data-sw-seconds="'+Math.floor(seconds)+'" data-sw-running="'+(running?'1':'0')+'"></span>';
+function ticks(){if(!data)return;const drift=Math.max(0,(Date.now()-data.received_at)/1000);root.querySelectorAll('[data-sw-seconds]').forEach(n=>{const sec=Number(n.dataset.swSeconds)+(n.dataset.swRunning==='1'?drift:0);n.textContent=sec<60?'不足 1 分钟':Math.floor(sec/3600)+' 小时 '+Math.floor(sec%3600/60)+' 分钟';});}
+const button=(t,action,label)=>'<button class="quiet" data-sw-action="'+action+'" data-id="'+t.id+'">'+label+'</button>';
+function actions(t){let out='';if(data.can_assign&&['received','queued','paused'].includes(t.state))out+=button(t,'assign','安排工程师');if((t.owner_id===data.user_id&&data.can_operate)||(data.can_assign&&t.owner_id)){if(['queued','paused'].includes(t.state))out+=button(t,'start',t.state==='paused'?'继续计时':t.owner_id===data.user_id?'开始开发':'登记开始');if(t.state==='in_progress')out+=button(t,'pause','暂停');if(['in_progress','paused'].includes(t.state))out+=button(t,'submit','提交验收');}if(data.can_review&&t.state==='review'&&(data.can_assign||t.created_by===data.user_id))out+=button(t,'accept','验收通过')+button(t,'return','退回修改');if(data.can_assign&&!['completed','cancelled'].includes(t.state))out+=button(t,'cancel','取消');return out||'—';}
+function render(){err.textContent=error;if(!data)return;const counts=states=>data.items.filter(t=>states.includes(t.state)).length;
+body.innerHTML='<div class="sw-metrics">'+[['待安排',counts(['received'])],['开发中',counts(['in_progress'])],['已排期 / 暂停',counts(['queued','paused'])],['待验收',counts(['review'])]].map(([label,value])=>'<div><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div>'+
+(data.can_create?'<details class="sw-panel" '+(draft?'open':'')+'><summary>提交产品研发需求</summary><form class="sw-form"><label>需求名称<input name="title" required maxlength="200"></label><label>优先级<select name="priority"><option value="normal">正常</option><option value="urgent">紧急</option></select></label><label class="sw-wide">研发要求与验收标准<textarea name="brief" required maxlength="4000" rows="3"></textarea></label><button type="submit">提交给软件部</button></form></details>':'')+
+'<section class="sw-panel"><h3>当前任务与进度</h3>'+table(['需求 / 提出人','负责人','状态','首次开始','累计计时','目标日期','操作'],data.items.map(t=>[safe(t.number)+'<br><strong>'+safe(t.title)+'</strong><br><small>来源：产品研发中心 · 提出人：'+safe(name(t.created_by))+'</small><details><summary>需求与过程</summary><p>'+safe(t.brief)+'</p>'+(t.result_reference?'<p>成果：'+safe(t.result_reference)+'</p>':'')+t.history.map(h=>'<p>'+safe(stamp(h.created_at))+' · '+safe(name(h.actor_id))+' · '+safe(h.action)+(h.note?'：'+safe(h.note):'')+'</p>').join('')+'</details>',safe(name(t.owner_id)),safe(data.states[t.state])+(t.priority==='urgent'?'<br><small>紧急</small>':''),safe(stamp(t.started_at)),t.started_at?clock(t.elapsed_seconds,t.state==='in_progress'):'未开始',safe(t.due_date||'尚未排期'),actions(t)]))+'</section>'+
+(data.workloads.length?'<section class="sw-panel"><h3>工程师手上任务</h3>'+table(['工程师','未结束任务','正在开发','在此任务累计计时'],data.workloads.map(w=>{const t=data.items.find(t=>t.id===w.running_task_id);return [safe(w.name),safe(w.open_count),t?safe(t.title):'暂无正在开发任务',t?clock(w.elapsed_seconds,true):'—'];}))+'</section>':data.can_assign?'<p class="sw-empty">先在“账号与权限 → 中心职责”中把工程师加入软件中心，才能安排任务。</p>':'')+
+'<p class="sw-note">计时从“开始开发”起累计，暂停、提交验收后停止；一名工程师同时只计时一项任务。计时用于进度记录，不代替考勤。页面每分钟更新，编辑或查看过程时暂停自动刷新。</p>';
+if(draft){const f=body.querySelector('form');if(f)for(const field of f.elements)if(field.name&&draft[field.name]!=null)field.value=draft[field.name];}ticks();}
+async function reload(){const response=await api('/api/software/work');if(!root.isConnected)return;data={...response,received_at:Date.now()};render();}
+root.addEventListener('submit',async e=>{const f=e.target.closest('.sw-form');if(!f)return;e.preventDefault();e.stopPropagation();if(busy)return;busy=true;draft=Object.fromEntries(new FormData(f));f.querySelector('button').disabled=true;try{await api('/api/software/work',{action:'create',...draft,request_id:requestId});draft=null;requestId=crypto.randomUUID();error='';await reload();}catch(ex){error=ex.message;render();}finally{busy=false;}});
+root.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();if(b.hasAttribute('data-sw-refresh')){try{await reload();}catch(ex){error=ex.message;render();}return;}if(!b.dataset.swAction||busy)return;const t=data.items.find(t=>t.id===b.dataset.id),action=b.dataset.swAction;if(!t)return;
+if(action==='assign'){
+ if(!data.engineers.length){error='请先将工程师加入软件中心';render();return;}
+ modal('安排软件工程师',select('owner_id','负责人',data.engineers,t.owner_id||'')+input('due_date','目标日期','date',t.due_date||'',false)+textarea('note','排期说明',false),p=>api('/api/software/work',{...p,id:t.id,version:t.version,action}).then(()=>reload()));return;
+}
+let payload={id:t.id,version:t.version,action};
+if(action==='pause'||action==='return'||action==='cancel'){const note=prompt(action==='pause'?'暂停原因':action==='return'?'退回修改要求':'取消原因');if(note===null)return;if(!note.trim()){error='请填写处理原因';render();return;}payload.note=note;}
+if(action==='submit'){const result=prompt('请填写成果文件位置、版本或交付说明');if(result===null)return;if(!result.trim()){error='请填写成果位置或交付说明';render();return;}payload.result_reference=result;}
+if(action==='accept'&&!confirm('确认验收通过并结束该任务？'))return;
+busy=true;b.disabled=true;try{await api('/api/software/work',payload);error='';await reload();}catch(ex){error=ex.message;render();}finally{busy=false;}
+});
+reload().catch(ex=>{body.textContent='读取任务失败：'+ex.message;});const interval=setInterval(()=>{if(!root.isConnected)clearInterval(interval);else{ticks();if(!busy&&!root.querySelector('details[open]'))reload().catch(()=>{});}},60000);
+}
