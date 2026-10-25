@@ -394,11 +394,11 @@ function renderSharedAftersalesTasks(el,rows){
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-af-shared]');if(!b)return;aftercareSharedTaskId=b.dataset.afShared;routeRecord=aftercareSharedTaskId;view='center-aftersales-workflow';await chooseProject(b.dataset.afProject);});
 
 function renderUnifiedSoftwareCenter(el){
-const menus={'工作台':['总览'],'产品中心':['安卓产品','功能定义','功能权益','内容包','内容授权'],'客户与场地':['场地管理'],'设备中心':['安卓设备','绑定码管理','远程任务','设备能力'],'发布与更新':['APK 版本','更新与恢复任务'],'监控与诊断':['告警规则','告警记录','日志诊断'],'数据报表':['设备统计','游戏事件'],'系统设置':['Webhook 配置','回调记录','接入进度']};
+const menus={'工作台':['总览']};
 const states={draft:'草稿',active:'已启用',disabled:'已停用',waiting_adapter:'待接入执行器',queued:'已下发待领取',running:'执行中',succeeded:'已确认完成',failed:'失败',unsupported:'设备不支持',cancelled:'已取消',pending:'待处理',retry:'等待重试',sending:'发送中',delivered:'已送达',open:'待处理',resolved:'已恢复'};
 const taskNames={sync_config:'同步配置',collect_agent_logs:'采集管理端诊断',install_apk:'安装 APK',rollback_apk:'恢复指定版本',restart_app:'重启游戏应用',reboot:'重启安卓板',sync_content:'下载内容包'};
 let selected='工作台',tab='总览',data=null,busy=false,notice='',oneTime='',secret='',editing=null,draftValues=null;
-el.innerHTML='<div id="unified-sc"><div class="window"><header><span class="mark">亦</span><span class="brandname">亦玩 · 安卓软件中心</span><span class="caption">产品、授权、发布与运维</span></header><div class="shell"><aside id="usc-nav"></aside><main><div class="heading"><div><h2 id="usc-title"></h2><p class="caption">业务资料真实保存 · 设备执行以回执为准</p></div><button class="smallbutton" data-usc-refresh>更新状态</button></div><div class="tabs" id="usc-tabs"></div><div id="usc-notice" aria-live="polite"></div><div id="usc-content"></div></main></div></div></div>';
+el.innerHTML='<div id="unified-sc"><div class="window"><header><span class="mark">亦</span><span class="brandname">亦玩技术软件中心</span><span class="caption">产品、授权、发布与运维</span></header><div class="shell"><aside id="usc-nav"></aside><main><div class="heading"><div><h2 id="usc-title"></h2><p class="caption">业务资料真实保存 · 设备执行以回执为准</p></div><button class="smallbutton" data-usc-refresh>更新状态</button></div><div class="tabs" id="usc-tabs"></div><div id="usc-notice" aria-live="polite"></div><div id="usc-content"></div></main></div></div></div>';
 const root=el.querySelector('#unified-sc'),find=s=>root.querySelector(s),text=v=>esc(String(v??'—'));
 const date=v=>v?new Date(typeof v==='number'?v*1000:v).toLocaleString('zh-CN'):'—';
 const customer=id=>data.customers.find(p=>p.id===id)?.name||id;
