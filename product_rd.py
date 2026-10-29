@@ -32,3 +32,32 @@ def save(db,user,p):
     import centers
     centers.event(db,user,'product_rd_themes',ident,'更新研发主题' if before else '创建研发主题',dict(before) if before else {},dict(db.execute('SELECT * FROM product_rd_themes WHERE id=?',(ident,)).fetchone()))
     return {'ok':True,'id':ident}
+
+
+def seed_examples(db):
+    """One-time labelled fixtures for the existing shared test deployment."""
+    import os,secrets
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    marker='product_rd_examples_20261029_v1'
+    if os.environ.get('YIFUN_DEMO_MODE')!='1' or db.execute('SELECT 1 FROM settings WHERE key=?',(marker,)).fetchone():return
+    actor=db.execute("SELECT * FROM employees WHERE role='admin' AND status='active' ORDER BY id LIMIT 1").fetchone()
+    if not actor:return
+    today=datetime.now(ZoneInfo('Asia/Shanghai')).date();stamp=c.now()
+    titles=['互动装置','桌面产品','配件系列','智能终端','展示模块','新品概念']
+    stages=[2,3,1,4,5,0]
+    for i,title in enumerate(titles):
+        member=f'DEMO-RD-MEMBER-{i+1}';name='测试研发成员 '+chr(65+i);group='研发一组' if i<3 else '研发二组';stage=stages[i]
+        db.execute('INSERT OR IGNORE INTO employees(id,email,name,role,status,password_hash,salt,created_at) VALUES(?,?,?,?,?,?,?,?)',(member,f'rd-test-{i+1}@example.invalid',name,'engineering','active',secrets.token_hex(32),secrets.token_hex(16),stamp))
+        db.execute('INSERT OR IGNORE INTO center_members(employee_id,center) VALUES(?,?)',(member,'product_rd'))
+        for done in (False,True):
+            ident=f'DEMO-RD-20261029-{i+1}-'+('DONE' if done else 'ACTIVE')
+            month=[1,3,5,7,9,today.month][i] if done else today.month
+            planned=today.replace(month=month,day=15 if done else 28).isoformat();listed=today.replace(month=month,day=min(today.day,15)).isoformat() if done else ''
+            visual='已完成视觉资料交接' if done or stage>=3 else '视觉方案确认中' if stage==2 else '待交接'
+            software='已完成软件资料交接' if done or stage>=3 else '交互逻辑确认中' if stage==2 else '待交接'
+            printed='确认通过' if done or stage>=3 else '待确认' if stage==2 else '待启动'
+            note='共享测试数据，非真实研发业务。'+('已完成样品验收与标准化，上架记录用于验证年度及月度统计。' if done else ['确认新品定位和功能范围','补充低保真设计资料','等待3D打印结构确认','跟进工厂样品交期','记录样品验收结果','补齐图纸、物料及产品标准资料'][stage])
+            db.execute('INSERT OR IGNORE INTO product_rd_themes(id,title,group_name,owner_id,stage,planned_date,listed_date,visual,software,print_status,note,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(ident,'【测试】'+title+(' · 已上架' if done else ' · 在研'),group,member,6 if done else stage,planned,listed,visual,software,printed,note,stamp,actor['id']))
+    db.execute('INSERT INTO settings(key,value) VALUES(?,?)',(marker,stamp))
+    c.audit(db,dict(actor),'demo',marker,'添加产品研发共享测试主题',{'synthetic':True,'members':6,'active':6,'listed':6})
