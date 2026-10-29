@@ -365,12 +365,16 @@ function renderProductionBoard(el,report,key='all'){
  const labels=report.workshops;
  const feedbackRows=[...all,...(report.engineering?.orders||[])];
  const feedback=r=>(r.feedback_records||[]).length?'<button type="button" class="quiet" data-production-feedback="'+esc(r.id)+'">卡点反馈 · '+r.feedback_records.length+' 条 →</button>':'暂无卡点反馈';
- const quantityRate=(r,dept)=>'待登记 / '+(r.progress?.[dept]==null?'待登记':esc(r.progress?.[dept])+'%');
+ const quantityRate=(r,dept)=>{
+ const key=({'油漆部':'paint','软包部':'upholstery','铁车间':'metal'})[dept],part=r.production_parts?.[key];
+ const progress=part?.progress??r.progress?.[dept];
+ return (part?.quantity==null?'待登记':esc(part.quantity))+' / '+(progress==null?'待登记':esc(progress)+'%');
+ };
  const workshopTable=()=>{
  const headers=key==='wood'?['项目名称','工程负责人','下单进度','油漆件','软包','房子','问题反馈','商务负责人','设计负责人']:key==='upholstery'?['项目名称','工程负责人','下单进度','软包','问题反馈','商务负责人','设计负责人']:['项目名称','工程负责人','下单进度',key==='paint'?'油漆':'铁工','问题反馈','商务负责人'];
  return '<div class="department-table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>{
  const base=['<strong>'+esc(r.name)+'</strong><small>'+esc(r.number)+'</small>',esc(r.engineering_owner),pct(r.progress?.['下单'],'下单')];
- const measures=key==='wood'?[quantityRate(r,'油漆部'),quantityRate(r,'软包部'),'待登记']:key==='upholstery'?[quantityRate(r,'软包部')]:[quantityRate(r,key==='paint'?'油漆部':'铁车间')];
+ const measures=key==='wood'?[quantityRate(r,'油漆部'),quantityRate(r,'软包部'),pct(r.production_parts?.house?.progress,'房子')]:key==='upholstery'?[quantityRate(r,'软包部')]:[quantityRate(r,key==='paint'?'油漆部':'铁车间')];
  const cells=[...base,...measures,feedback(r),esc(r.sales_owner||'待登记'),...(key==='wood'||key==='upholstery'?[esc(r.design_owner||'待登记')]:[])];
  return '<tr>'+cells.map(c=>'<td>'+c+'</td>').join('')+'</tr>';
  }).join('')+(rows.length?'':'<tr><td colspan="'+headers.length+'">暂无关联生产订单</td></tr>')+'</tbody></table></div>';
@@ -519,6 +523,7 @@ busy=true;b.disabled=true;try{await api('/api/software/work',payload);error='';a
 });
 reload().catch(ex=>{body.textContent='读取任务失败：'+ex.message;});const interval=setInterval(()=>{if(!root.isConnected)clearInterval(interval);else{ticks();if(!busy&&!root.querySelector('details[open]'))reload().catch(()=>{});}},60000);
 }
+
 
 
 

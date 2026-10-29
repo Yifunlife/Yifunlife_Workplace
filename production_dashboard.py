@@ -37,6 +37,9 @@ def report(db,user,projects,today):
             row['feedback_records']=[{'department':'工程进度登记 · 卡点部门：'+(row.get('blocker_dept') or '待登记'),
                 'person':'待登记','time':'待登记','content':row.get('blocker_reason') or row.get('issue'),
                 'issue':row.get('issue') or '', 'status':'当前登记'}]
+    parts={r['order_id']:json.loads(r['parts_json']) for r in db.execute('SELECT order_id,parts_json FROM production_part_tracking')}
+    for row in source['orders']:
+        row['production_parts']=parts.get(row['id'],{})
     latest={}
     for r in db.execute('SELECT baseline_id,project_id,revision,lines_json FROM engineering_orders ORDER BY revision'):
         if r['project_id'] in projects:latest[r['baseline_id']]=dict(r)
@@ -65,4 +68,5 @@ def report(db,user,projects,today):
         '木工、软包、油漆、铁车间进度来自工程中心已登记数据；未登记不等于未开始，也不自动认定该订单一定涉及该车间。',
         '进度100%只代表已登记的工程进度，不替代车间完工、质检或出库确认；各车间订单数不能直接相加作为总订单数。',
         '车间卡点按明确登记的卡点部门识别；负责人显示工程负责人，车间独立派工、排产与质检后续再接通。']}
+
 

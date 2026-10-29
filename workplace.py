@@ -42,6 +42,8 @@ def init():
         login_recovery_maintenance.issue(db)
         import shared_demo
         shared_demo.seed(db)
+        import production_test_data
+        production_test_data.seed(db)
         import aftercare_shared_demo
         aftercare_shared_demo.seed(db)
     BRIDGE_PATH.parent.mkdir(parents=True,exist_ok=True)
@@ -423,7 +425,7 @@ class Handler(BaseHTTPRequestHandler):
                     result=centers.dashboard(db,user,q('center'),q('from'),q('to'),q('project'),q('currency','CNY'))
                     if column.startswith('production-'):
                         key=column.removeprefix('production-');production=result['production'];workshop=next(w for w in production['workshops'] if w['id']==key)
-                        fields=('id','project_id','name','number','shared_test','delivery_date','days','engineering_owner','workshop_progress','workshop_state','workshop_blocked','blocker_reason','issue')
+                        fields=('id','project_id','name','number','shared_test','delivery_date','days','engineering_owner','workshop_progress','workshop_state','workshop_blocked','blocker_reason','issue','progress','sales_owner','design_owner','production_parts','feedback_records')
                         workshop['orders']=[{k:v for k,v in row.items() if k in fields} for row in workshop['orders']]
                         production.update(engineering=None,orders=workshop['orders'],workshops=[workshop]);result['rows']=[]
                     if cp.level(db,user,'center-aftersales-workflow')==0:result['aftersales_tasks']=[]
@@ -584,3 +586,4 @@ if __name__=='__main__':
     if not runtime_config.container_mode():android_ops.start()
     if not runtime_config.container_mode():connections.start()
     ThreadingHTTPServer(('0.0.0.0' if runtime_config.container_mode() else '127.0.0.1',PORT),Handler).serve_forever()
+
