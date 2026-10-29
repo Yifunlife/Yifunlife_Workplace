@@ -56,6 +56,9 @@ def init():
             if not db.execute('SELECT 1 FROM workplace_migrations WHERE name=?',(key,)).fetchone():
                 db.executescript('BEGIN;\n'+file.read_text()+"\nINSERT INTO workplace_migrations(name) VALUES('"+key+"'); COMMIT;")
 
+        import product_rd
+        product_rd.init(db)
+
 
 def d1_batch(statements):
     if not isinstance(statements, list) or not 1 <= len(statements) <= 1500:

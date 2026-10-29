@@ -101,6 +101,9 @@ def history_changes(db,page,before,after):
 
 def execute(db,user,action,p):
     import column_permissions as cp
+    if action=='product-rd-theme':
+        import product_rd
+        return product_rd.save(db,user,p)
     if action!='members':cp.write_guard(db,user,cp.center_action(action,p))
     if action in ('aftersales-expense','aftersales-expense-void'):
         import aftersales_expenses
@@ -427,4 +430,4 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' and user['role'] in MANAGERS else None
     import aftercare_sync
     shared_tasks=aftercare_sync.tasks(db,user,center,project) if center in ('engineering','factory','procurement','stock','aftersales') else []
-    return {'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'members':[dict(row) for row in db.execute("SELECT e.id,e.name,e.role FROM center_members m JOIN employees e ON e.id=m.employee_id WHERE m.center=? AND e.status='active' ORDER BY e.name,e.id",(center,))] if center in ('product_rd','software','brand_visual') else [],'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    return {'rd':__import__('product_rd').report(db,user) if center=='product_rd' else None,'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'account_reporting':account_report,'sales':sales,'members':[dict(row) for row in db.execute("SELECT e.id,e.name,e.role FROM center_members m JOIN employees e ON e.id=m.employee_id WHERE m.center=? AND e.status='active' ORDER BY e.name,e.id",(center,))] if center in ('product_rd','software','brand_visual') else [],'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
