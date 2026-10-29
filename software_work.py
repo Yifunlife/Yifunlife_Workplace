@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import core as c,centers,column_permissions as cp,runtime_config
 STATES={'received':'待安排','queued':'已排期','in_progress':'开发中','paused':'已暂停','review':'待验收','completed':'已完成','cancelled':'已取消'}
 def init(db):
+ db.execute("CREATE TABLE IF NOT EXISTS software_work_blockers(task_id TEXT PRIMARY KEY REFERENCES software_work_items(id),reason TEXT NOT NULL,collaborator TEXT NOT NULL DEFAULT '',next_step TEXT NOT NULL DEFAULT '',status TEXT NOT NULL,updated_by TEXT NOT NULL REFERENCES employees(id),updated_at REAL NOT NULL)")
  db.execute('CREATE TABLE IF NOT EXISTS software_team_slots(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 1 AND 5),employee_id TEXT UNIQUE REFERENCES employees(id))')
  db.execute('''CREATE TABLE IF NOT EXISTS software_work_items(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,title TEXT NOT NULL,brief TEXT NOT NULL,priority TEXT NOT NULL,state TEXT NOT NULL,owner_id TEXT REFERENCES employees(id),due_date TEXT,started_at REAL,completed_at REAL,result_reference TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL REFERENCES employees(id),created_at REAL NOT NULL,updated_at REAL NOT NULL,version INTEGER NOT NULL DEFAULT 1,request_id TEXT NOT NULL,request_hash TEXT NOT NULL,source_center TEXT NOT NULL DEFAULT 'product_rd',UNIQUE(created_by,request_id))''')
  db.execute('''CREATE TABLE IF NOT EXISTS software_work_sessions(id TEXT PRIMARY KEY,task_id TEXT NOT NULL REFERENCES software_work_items(id),owner_id TEXT NOT NULL REFERENCES employees(id),started_at REAL NOT NULL,ended_at REAL,note TEXT NOT NULL DEFAULT '')''')
@@ -24,6 +25,8 @@ def overview(db,user):
  items=[]
  for raw in db.execute('SELECT * FROM software_work_items ORDER BY created_at DESC,id'):
   r=dict(raw)
+  block=c.row(db,'SELECT * FROM software_work_blockers WHERE task_id=?',(r['id'],));r['blocker']={**block,'active':block['status']!='resolved'} if block else None
+  r['can_edit_blocker']=not runtime_config.read_only(user) and ((manager and software and cp.level(db,user,'center-software')==2) or (r['owner_id']==user['id'] and software and cp.level(db,user,'center-software')==2) or (r['created_by']==user['id'] and 'product_rd' in allowed and cp.level(db,user,'center-product_rd')==2))
   if not software and not manager and r['created_by']!=user['id']:continue
   r['elapsed_seconds']=sum(max(0,(s['ended_at'] if s['ended_at'] is not None else stamp)-s['started_at']) for s in db.execute('SELECT started_at,ended_at FROM software_work_sessions WHERE task_id=?',(r['id'],)))
   r['history']=[dict(h) for h in db.execute('SELECT actor_id,action,note,created_at FROM software_work_history WHERE task_id=? ORDER BY created_at',(r['id'],))];items.append(r)
@@ -73,7 +76,14 @@ def execute(db,user,p):
  if type(p.get('version')) is not int or p['version']!=r['version']:raise c.Problem('任务已被更新，请更新状态后重试',409)
  owner=r['owner_id']==user['id'] and 'software' in allowed;operator=owner or (manager and 'software' in allowed and bool(r['owner_id']));stamp=time.time();reason=c.text(p.get('note',''),'处理说明',required=False,limit=1000)
  def close_session():db.execute('UPDATE software_work_sessions SET ended_at=?,note=? WHERE task_id=? AND ended_at IS NULL',(stamp,reason,r['id']))
- if action=='assign':
+ if action=='blocker':
+  if not ((manager and 'software' in allowed) or owner or (r['created_by']==user['id'] and 'product_rd' in allowed)):raise c.Problem('仅负责人、需求提出人或软件中心管理员可登记卡点',403)
+  status=p.get('blocker_status')
+  if status not in ('waiting','handling','resolved'):raise c.Problem('请选择有效的处理状态')
+  block_reason=c.text(p.get('blocker_reason'),'卡点原因',limit=2000);collaborator=c.text(p.get('collaborator',''),'协作人员',False,200);next_step=c.text(p.get('next_step',''),'下一步处理',False,2000)
+  db.execute('INSERT INTO software_work_blockers VALUES(?,?,?,?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET reason=excluded.reason,collaborator=excluded.collaborator,next_step=excluded.next_step,status=excluded.status,updated_by=excluded.updated_by,updated_at=excluded.updated_at',(r['id'],block_reason,collaborator,next_step,status,user['id'],stamp))
+  reason=json.dumps({'卡点原因':block_reason,'协作人员':collaborator,'下一步':next_step,'状态':status},ensure_ascii=False);label='卡点已解决' if status=='resolved' else '更新开发卡点'
+ elif action=='assign':
   if not manager or 'software' not in allowed:raise c.Problem('仅管理员或 CEO 可以安排工程师',403)
   if r['state'] not in ('received','queued','paused'):raise c.Problem('请先暂停当前开发，再调整负责人')
   target=c.need(db,'employees',p.get('owner_id'))
