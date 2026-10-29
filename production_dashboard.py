@@ -6,6 +6,37 @@ WORKSHOPS=(('wood','木工车间','木工部'),('upholstery','软包车间','软
 
 def report(db,user,projects,today):
     source=engineering_dashboard.report(db,user,projects,today)
+    feedback_by_order={}
+    seen_feedback=set()
+    for event in db.execute("SELECT entity_id,actor_name,detail_json,created_at FROM audit_events WHERE entity='engineering_tracking' ORDER BY created_at DESC"):
+        try:
+            detail=json.loads(event['detail_json'])
+            after=detail.get('after') or {}
+            before=detail.get('before') or {}
+        except (ValueError,TypeError):
+            continue
+        if after.get('project_id') not in projects:
+            continue
+        fields=('blocker_dept','blocker_reason','issue')
+        if all(after.get(k)==before.get(k) for k in fields):
+            continue
+        if not (after.get('blocker_reason') or after.get('issue')):
+            continue
+        signature=(event['entity_id'],)+(tuple(after.get(k) for k in fields))
+        if signature in seen_feedback:
+            continue
+        seen_feedback.add(signature)
+        feedback_by_order.setdefault(event['entity_id'],[]).append({
+            'department':'工程进度登记 · 卡点部门：'+(after.get('blocker_dept') or '待登记'),
+            'person':event['actor_name'],'time':event['created_at'],
+            'content':after.get('blocker_reason') or after.get('issue'),
+            'issue':after.get('issue') or '', 'status':'登记记录'})
+    for row in source['orders']:
+        row['feedback_records']=feedback_by_order.get(row['id'],[])
+        if not row['feedback_records'] and (row.get('blocker_reason') or row.get('issue')):
+            row['feedback_records']=[{'department':'工程进度登记 · 卡点部门：'+(row.get('blocker_dept') or '待登记'),
+                'person':'待登记','time':'待登记','content':row.get('blocker_reason') or row.get('issue'),
+                'issue':row.get('issue') or '', 'status':'当前登记'}]
     latest={}
     for r in db.execute('SELECT baseline_id,project_id,revision,lines_json FROM engineering_orders ORDER BY revision'):
         if r['project_id'] in projects:latest[r['baseline_id']]=dict(r)
@@ -34,3 +65,4 @@ def report(db,user,projects,today):
         '木工、软包、油漆、铁车间进度来自工程中心已登记数据；未登记不等于未开始，也不自动认定该订单一定涉及该车间。',
         '进度100%只代表已登记的工程进度，不替代车间完工、质检或出库确认；各车间订单数不能直接相加作为总订单数。',
         '车间卡点按明确登记的卡点部门识别；负责人显示工程负责人，车间独立派工、排产与质检后续再接通。']}
+
