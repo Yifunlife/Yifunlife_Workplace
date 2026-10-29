@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import core as c,centers,column_permissions as cp,runtime_config
 STATES={'received':'待安排','queued':'已排期','in_progress':'开发中','paused':'已暂停','review':'待验收','completed':'已完成','cancelled':'已取消'}
 def init(db):
+ db.execute('CREATE TABLE IF NOT EXISTS software_team_slots(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 1 AND 5),employee_id TEXT UNIQUE REFERENCES employees(id))')
  db.execute('''CREATE TABLE IF NOT EXISTS software_work_items(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,title TEXT NOT NULL,brief TEXT NOT NULL,priority TEXT NOT NULL,state TEXT NOT NULL,owner_id TEXT REFERENCES employees(id),due_date TEXT,started_at REAL,completed_at REAL,result_reference TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL REFERENCES employees(id),created_at REAL NOT NULL,updated_at REAL NOT NULL,version INTEGER NOT NULL DEFAULT 1,request_id TEXT NOT NULL,request_hash TEXT NOT NULL,source_center TEXT NOT NULL DEFAULT 'product_rd',UNIQUE(created_by,request_id))''')
  db.execute('''CREATE TABLE IF NOT EXISTS software_work_sessions(id TEXT PRIMARY KEY,task_id TEXT NOT NULL REFERENCES software_work_items(id),owner_id TEXT NOT NULL REFERENCES employees(id),started_at REAL NOT NULL,ended_at REAL,note TEXT NOT NULL DEFAULT '')''')
  db.execute('CREATE UNIQUE INDEX IF NOT EXISTS software_one_running_task ON software_work_sessions(task_id) WHERE ended_at IS NULL')
@@ -36,12 +37,26 @@ def overview(db,user):
   seconds=0
   if running:seconds=sum(max(0,(s['ended_at'] if s['ended_at'] is not None else stamp)-s['started_at']) for s in db.execute('SELECT started_at,ended_at FROM software_work_sessions WHERE task_id=? AND owner_id=?',(running['id'],engineer['id'])))
   workloads.append({'id':engineer['id'],'name':engineer['name'],'open_count':len(owned),'running_task_id':running['id'] if running else None,'elapsed_seconds':seconds})
- return {'items':items,'employees':employees,'engineers':engineers,'workloads':workloads,'states':STATES,'server_time':stamp,'can_create':not runtime_config.read_only(user) and 'product_rd' in allowed and cp.level(db,user,'center-product_rd')==2,'can_assign':not runtime_config.read_only(user) and manager and software and cp.level(db,user,'center-software')==2,'user_id':user['id'],'can_review':not runtime_config.read_only(user) and any(cp.level(db,user,'center-'+v)==2 for v in allowed),'can_operate':not runtime_config.read_only(user) and 'software' in allowed and cp.level(db,user,'center-software')==2}
+ return {'team_slots':[{'slot':i,'discipline':'hardware' if i==5 else 'software','label':'硬件工程师 1' if i==5 else '软件工程师 '+str(i),'employee_id':next((r['employee_id'] for r in db.execute('SELECT employee_id FROM software_team_slots WHERE slot=?',(i,))),None)} for i in range(1,6)] if software else [],'items':items,'employees':employees,'engineers':engineers,'workloads':workloads,'states':STATES,'server_time':stamp,'can_create':not runtime_config.read_only(user) and 'product_rd' in allowed and cp.level(db,user,'center-product_rd')==2,'can_assign':not runtime_config.read_only(user) and manager and software and cp.level(db,user,'center-software')==2,'user_id':user['id'],'can_review':not runtime_config.read_only(user) and any(cp.level(db,user,'center-'+v)==2 for v in allowed),'can_operate':not runtime_config.read_only(user) and 'software' in allowed and cp.level(db,user,'center-software')==2}
 
 def note(db,user,key,action,text=''):
  db.execute('INSERT INTO software_work_history VALUES(?,?,?,?,?,?)',(c.uid(),key,user['id'],action,text,time.time()));c.audit(db,user,'software_work',key,action,{'note':text})
 def execute(db,user,p):
  allowed=scopes(db,user,True);manager=user['role'] in ('admin','ceo');action=p.get('action')
+ if action=='team-slots':
+  if not manager or 'software' not in allowed:raise c.Problem('仅管理员或CEO可以安排团队岗位',403)
+  slots=p.get('slots')
+  if not isinstance(slots,list) or len(slots)!=5 or any(not isinstance(v,str) for v in slots):raise c.Problem('请提供四个软件岗位和一个硬件岗位')
+  people=[v for v in slots if v]
+  if len(set(people))!=len(people):raise c.Problem('同一成员不能重复占用岗位')
+  for ident in people:
+   employee=c.need(db,'employees',ident)
+   if employee['status']!='active' or not centers.assigned(db,employee,'software'):raise c.Problem('请选择软件中心的在职成员')
+  db.execute('DELETE FROM software_team_slots')
+  for i,ident in enumerate(slots,1):
+   if ident:db.execute('INSERT INTO software_team_slots VALUES(?,?)',(i,ident))
+  c.audit(db,user,'software_team','team','更新软硬件团队岗位',{'slots':slots})
+  return {'ok':True}
  if action=='create':
   if 'product_rd' not in allowed:raise c.Problem('请由产品研发中心提交需求，软件中心直接接收同一条记录',403)
   title=c.text(p.get('title'),'需求名称',limit=200);brief=c.text(p.get('brief'),'需求说明',limit=4000);priority=p.get('priority','normal')
