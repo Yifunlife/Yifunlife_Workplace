@@ -17,7 +17,14 @@ def seed(db):
               ('进度全部完成',[100,100,100,100,100,100,0], {'paint':{'quantity':32,'progress':100},'upholstery':{'quantity':20,'progress':100},'metal':{'quantity':16,'progress':100},'house':{'progress':100}}, [])]
     for index,(label,values,parts,feedback) in enumerate(examples,1):
         key=f'DEMO-PRODUCTION-20261029-{index}'
-        db.execute('INSERT OR IGNORE INTO order_baselines(id,number,project_id,quote_id,kind,currency,agreed_minor,raw_snapshot,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,f'DEMO-PROD-1029-{index}',template['project_id'],template['quote_id'],template['kind'],template['currency'],0,json.dumps({'sharedDemo':True,'label':'生产测试：'+label}),actor['id'],stamp))
+        quote=dict(db.execute('SELECT * FROM quotation_history WHERE id=?',(template['quote_id'],)).fetchone())
+        quote['id']=key+'-QUOTE'
+        quote['contract_no']=f'DEMO-PROD-Q-1029-{index}'
+        if 'lineage_id' in quote:quote['lineage_id']=key+'-LINEAGE'
+        if 'final_amount' in quote:quote['final_amount']=0.01
+        columns=list(quote)
+        db.execute('INSERT OR IGNORE INTO quotation_history('+','.join(columns)+') VALUES('+','.join('?' for _ in columns)+')',[quote[k] for k in columns])
+        db.execute('INSERT OR IGNORE INTO order_baselines(id,number,project_id,quote_id,kind,currency,agreed_minor,raw_snapshot,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,f'DEMO-PROD-1029-{index}',template['project_id'],quote['id'],template['kind'],template['currency'],1,json.dumps({'sharedDemo':True,'label':'生产测试：'+label}),actor['id'],stamp))
         progress=dict(zip(('下单','木工部','软包部','油漆部','铁车间','采购部','安装'),values))
         dept,reason=feedback[-1] if feedback else ('','')
         db.execute('INSERT OR IGNORE INTO engineering_tracking(id,project_id,stage,owner_id,delivery_date,progress_json,blocker_dept,blocker_reason,issue,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(key,template['project_id'],'生产中',actor['id'],(today+timedelta(days=3+index)).isoformat(),json.dumps(progress,ensure_ascii=False),dept,reason,'生产测试：'+label,actor['id'],stamp))
