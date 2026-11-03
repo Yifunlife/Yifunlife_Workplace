@@ -24,6 +24,11 @@ export class WorkplaceContainer extends Container {
     };
   }
   async fetch(request) {
+    // Replace startup variables retained by the pre-integration container once.
+    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('marketing-env-v1')) {
+      await this.stop();
+      await this.ctx.storage.put('marketing-env-v1', true);
+    }
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/modules\/(quote|procurement|aftersales)(?:\/|$)/);
     const name = match?.[1];
