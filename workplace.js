@@ -98,12 +98,12 @@ function shell(){
 async function refresh(){session=await api('/api/auth/session');if(!session.authenticated){login();return;}project=session.project_id||'';if(!can('supplier','finance'))state=await api('/api/view/overview'+(project?`?project=${encodeURIComponent(project)}`:''));else state={projects:[],products:[],baselines:[],customers:[]};await render();}
 async function chooseProject(id){await api('/api/context',{project_id:id||null});project=id;await refresh();}
 async function render(){
- if(view==='aftersales'||view==='center-aftersales')view='center-aftersales-workflow';
+ if(view==='aftersales')view='center-aftersales';
  if(!columnAccess(view)){++renderGeneration;const el=$('#content');el.innerHTML=head('没有此栏目的查看权限','请联系管理员在账号与权限中调整授权。');return;}
  try{await renderAuthorizedPage();}finally{applyColumnReadOnly();}
 }
 async function renderAuthorizedPage(){
- document.querySelectorAll('.rail [data-view]').forEach(b=>{b.hidden=!columnAccess(b.dataset.view);});if(view==='aftersales'||view==='center-aftersales')view='center-aftersales-workflow';workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('.shell').classList.toggle('aftersales-original-view',view==='center-aftersales-workflow');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
+ document.querySelectorAll('.rail [data-view]').forEach(b=>{b.hidden=!columnAccess(b.dataset.view);});if(view==='aftersales')view='center-aftersales';workplacePageUrl();const current=++renderGeneration;refreshWorkReminders();const section=sectionForView(view);const center=(Boolean(modules[view])&&view!=='aftersales')||section?.id==='finance';const wasCenter=$('.shell').classList.contains('center-view');$('.shell').classList.toggle('center-view',center);$('.shell').classList.toggle('dashboard-view',view==='dashboard');$('.shell').classList.toggle('aftersales-original-view',view==='center-aftersales-workflow');$('#center-title').textContent=section?.name||modules[view]?.name||labels[view]||'';$('#center-project').textContent=project?projectName(project):'全部项目';
  if($('#center-switch')&&section)$('#center-switch').value=section.pages[0][0];
  $('#sales-center-label').hidden=section?.id!=='crm';
  const sections=$('#center-sections'),group=section?.groups?.find(g=>g.pages.some(([page])=>page===view));

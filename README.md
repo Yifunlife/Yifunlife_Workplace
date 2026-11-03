@@ -45,3 +45,5 @@
 CRM、运营和售后均按上海时间08:00、12:00、23:00同步。失败保留旧数据并重试，网页刷新只读集团云端副本。电脑锁屏、关机或退出浏览器不影响同步；CRM内部依赖桌面连接的WhatsApp/邮件收发仍按原工作台连接状态运行。
 
 检查：`scripts/test_crm_cloud.py`、`scripts/test_aftersales_cloud.py`、原账号权限和提醒回归检查。
+
+售后中心的默认入口为云端工单驾驶舱。原内部工作台继续保留独立栏目，不修改既有历史数据；驾驶舱的源工单链接进入 `https://aftersales.shyiwan.com/workspace`。
