@@ -27,7 +27,7 @@ async function companyDashboard(el,generation){
   dashboardUrl();drawDashboard(el);
 }
 function drawDashboard(el=$('#content')){
-  el.innerHTML=dashboardPage()+marketingCloudPanel();if(dashboardData.account_reporting){const r=dashboardData.account_reporting;el.insertAdjacentHTML('beforeend',panel('运营账号联调 · 独立测试数据',table(['市场','账号数','区间运营花销','区间归属成交','年度广告支出','月度广告支出'],r.markets.map(m=>`<tr><td>${esc(m.market)}</td><td>${m.account_count}</td><td>${ceoMoney(m.cost,r.currency)}</td><td>${ceoMoney(m.sales,r.currency)}</td><td>${ceoMoney(m.annual_ads,r.currency)}</td><td>${ceoMoney(m.monthly_ads,r.currency)}</td></tr>`))));}
+  el.innerHTML=dashboardPage()+marketingCloudPanel();if(dashboardData.account_reporting&&!dashboardData.marketing_cloud?.enabled){const r=dashboardData.account_reporting;el.insertAdjacentHTML('beforeend',panel('运营账号联调 · 独立测试数据',table(['市场','账号数','区间运营花销','区间归属成交','年度广告支出','月度广告支出'],r.markets.map(m=>`<tr><td>${esc(m.market)}</td><td>${m.account_count}</td><td>${ceoMoney(m.cost,r.currency)}</td><td>${ceoMoney(m.sales,r.currency)}</td><td>${ceoMoney(m.annual_ads,r.currency)}</td><td>${ceoMoney(m.monthly_ads,r.currency)}</td></tr>`))));}
   for(const e of el.querySelectorAll('[data-ceo-background]'))e.style.background=e.dataset.ceoBackground;
   for(const e of el.querySelectorAll('[data-ceo-width]'))e.style.width=e.dataset.ceoWidth;
 }
