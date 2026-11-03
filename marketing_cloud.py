@@ -19,7 +19,7 @@ def refresh():
  try:
   with database.connect() as db:old=read(db)
   current_slot=slot()
-  if (old.get('slot')==current_slot and old.get('reporting_revision')==2) or time.time()-old.get('attempt_epoch',0)<300:return
+  if (old.get('slot')==current_slot and old.get('reporting_revision')==3) or time.time()-old.get('attempt_epoch',0)<300:return
   try:
    with urllib.request.urlopen('http://marketing.yifun.internal/snapshot',timeout=25) as response:
     raw=response.read(2*1024*1024+1)
@@ -28,7 +28,7 @@ def refresh():
    if v.get('source')!='yifun-marketing' or v.get('schemaVersion')!=1 or not isinstance(v.get('accounts'),list):raise ValueError('invalid snapshot')
    ids=[a['id'] for a in v['accounts']]
    if len(ids)!=len(set(ids)):raise ValueError('duplicate account')
-   old={'snapshot':v,'last_success':core.now(),'slot':current_slot,'reporting_revision':2,'error':None}
+   old={'snapshot':v,'last_success':core.now(),'slot':current_slot,'reporting_revision':3,'error':None}
   except Exception:
    logging.exception('Marketing cloud reporting sync failed')
    old['error']='运营同步暂未成功，保留上次成功数据'
@@ -47,7 +47,7 @@ def account_report(db,start,end,today,currency='CNY'):
   ads=[v for v in linked if v['kind']=='广告报表']
   def fee(period):
    values=[v.get('periods',{}).get(period) for v in ads]
-   if currency!='CNY' or not values or any(not v or v.get('status')!='ok' or not isinstance(v.get('metrics',{}).get('fee'),(int,float)) for v in values):return None
+   if currency!='CNY' or not values or any(not v or v.get('status') not in (('ok','partial') if period=='year' else ('ok',)) or not isinstance(v.get('metrics',{}).get('fee'),(int,float)) for v in values):return None
    return sum(minor(v['metrics']['fee']) for v in values)
   selected=[v for v in ads if any(v.get('periods',{}).get(k,{}).get('start')==start and v.get('periods',{}).get(k,{}).get('end')==end for k in ('month','year','yesterday'))]
   # Current source exports fixed report periods; never pretend they cover arbitrary group filters.
@@ -62,13 +62,6 @@ def account_report(db,start,end,today,currency='CNY'):
   aa=[a for a in accounts if a['market']==market];m={'market':market,'account_count':len(aa),'connected_count':sum(a['source_connected'] for a in aa),'month_ratio':None}
   for key in ('cost','sales','month_cost','month_sales','annual_ads','monthly_ads','month_posts'):
    values=[a[key] for a in aa if a[key] is not None];m[key]=sum(values) if values else None
-  if market=='内贸' and currency=='CNY':
-   # The source export contains domestic platform reports, including unassigned agency accounts.
-   # Include each stable advertising report once at market level; never guess its brand owner.
-   for field,period in [('annual_ads','year'),('monthly_ads','month'),('month_cost','month')]:
-    values=[v.get('periods',{}).get(period,{}) for v in source if v.get('kind')=='广告报表']
-    known=[minor(v['metrics']['fee']) for v in values if v.get('status')=='ok' and isinstance(v.get('metrics',{}).get('fee'),(int,float))]
-    m[field]=sum(known) if known else None
-   if start==today[:7]+'-01' and end==today:m['cost']=m['month_cost']
+  m['annual_partial']=market=='内贸' and any(v.get('periods',{}).get('year',{}).get('status')!='ok' or v.get('periods',{}).get('year',{}).get('stale') for v in source if v.get('kind')=='广告报表' and v.get('group_account_id'))
   markets.append(m)
  return {'shared_department_data':False,'test_mode':False,'currency':currency,'period':{'from':start,'to':end,'timezone':'Asia/Shanghai'},'today':today,'accounts':accounts,'markets':markets,'unassigned_spend_count':0,'cloud_sync':s,'unmapped_source_count':sum(not a.get('group_account_id') for a in source)}

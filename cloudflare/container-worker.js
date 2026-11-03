@@ -25,9 +25,9 @@ export class WorkplaceContainer extends Container {
   }
   async fetch(request) {
     // Replace startup variables retained by the pre-integration container once.
-    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('marketing-zero-display-v1')) {
+    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('marketing-source-parity-final-v1')) {
       await this.stop();
-      await this.ctx.storage.put('marketing-zero-display-v1', true);
+      await this.ctx.storage.put('marketing-source-parity-final-v1', true);
     }
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/modules\/(quote|procurement|aftersales)(?:\/|$)/);
