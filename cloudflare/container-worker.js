@@ -26,9 +26,9 @@ export class WorkplaceContainer extends Container {
   }
   async fetch(request) {
     // Replace startup variables retained by the pre-integration container once.
-    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('crm-aftersales-verified-v2')) {
+    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('crm-aftersales-owner-display-v3')) {
       await this.stop();
-      await this.ctx.storage.put('crm-aftersales-verified-v2', true);
+      await this.ctx.storage.put('crm-aftersales-owner-display-v3', true);
     }
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/modules\/(quote|procurement|aftersales)(?:\/|$)/);

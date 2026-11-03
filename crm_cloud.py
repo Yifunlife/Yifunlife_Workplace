@@ -40,7 +40,7 @@ def refresh():
  try:
   with database.connect() as db:previous=read(db)
   current_slot=slot()
-  if previous.get('slot')==current_slot or time.time()-previous.get('attempt_epoch',0)<300:return
+  if (previous.get('slot')==current_slot and previous.get('snapshot',{}).get('projectionRevision')==2) or (previous.get('snapshot',{}).get('projectionRevision')==2 and time.time()-previous.get('attempt_epoch',0)<300):return
   try:
    with urllib.request.urlopen('http://crm.yifun.internal/snapshot',timeout=90) as response:raw=response.read(16*1024*1024+1)
    if len(raw)>16*1024*1024:raise ValueError('CRM projection too large')
