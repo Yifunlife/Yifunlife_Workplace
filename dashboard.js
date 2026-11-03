@@ -27,7 +27,7 @@ async function companyDashboard(el,generation){
   dashboardUrl();drawDashboard(el);
 }
 function drawDashboard(el=$('#content')){
-  el.innerHTML=dashboardPage()+marketingCloudPanel();if(dashboardData.account_reporting&&!dashboardData.marketing_cloud?.enabled){const r=dashboardData.account_reporting;el.insertAdjacentHTML('beforeend',panel('运营账号联调 · 独立测试数据',table(['市场','账号数','区间运营花销','区间归属成交','年度广告支出','月度广告支出'],r.markets.map(m=>`<tr><td>${esc(m.market)}</td><td>${m.account_count}</td><td>${ceoMoney(m.cost,r.currency)}</td><td>${ceoMoney(m.sales,r.currency)}</td><td>${ceoMoney(m.annual_ads,r.currency)}</td><td>${ceoMoney(m.monthly_ads,r.currency)}</td></tr>`))));}
+  el.innerHTML=dashboardPage();if(dashboardData.account_reporting&&!dashboardData.marketing_cloud?.enabled){const r=dashboardData.account_reporting;el.insertAdjacentHTML('beforeend',panel('运营账号联调 · 独立测试数据',table(['市场','账号数','区间运营花销','区间归属成交','年度广告支出','月度广告支出'],r.markets.map(m=>`<tr><td>${esc(m.market)}</td><td>${m.account_count}</td><td>${ceoMoney(m.cost,r.currency)}</td><td>${ceoMoney(m.sales,r.currency)}</td><td>${ceoMoney(m.annual_ads,r.currency)}</td><td>${ceoMoney(m.monthly_ads,r.currency)}</td></tr>`))));}
   for(const e of el.querySelectorAll('[data-ceo-background]'))e.style.background=e.dataset.ceoBackground;
   for(const e of el.querySelectorAll('[data-ceo-width]'))e.style.width=e.dataset.ceoWidth;
 }
@@ -187,8 +187,8 @@ setInterval(async()=>{
   }catch(error){console.warn('看板自动更新暂未成功');}
 },30000);
 
-function marketingCloudPanel(){
- const s=dashboardData.marketing_cloud;if(!s?.enabled)return '';
+function marketingCloudPanel(s){
+ if(!s?.enabled)return '';
  const num=v=>typeof v==='number'?esc(v.toLocaleString('zh-CN')):'待更新';
  const rows=(s.snapshot?.accounts||[]).map(a=>{const p=a.periods?.month,m=p?.metrics||p||{},g=a.growth||{};return `<tr><td>${esc(a.platform)}</td><td>${esc(a.name)}</td><td>${esc(a.kind)}</td><td>${esc(p?.start||'—')} 至 ${esc(p?.end||a.data_end||'—')}${p?.stale?'（保留旧报表）':''}</td><td>${a.kind==='广告报表'?'CNY '+num(m.fee):'—'}</td><td>${num(m.impressions??m.impression)}</td><td>${num(m.views)}</td><td>${num(m.click)}</td><td>${num(m.convert)}</td><td>${num(a.fans)}</td><td>${num(g.net_followers)}</td><td>${num(g.posts)}</td></tr>`});
  return panel('运营云端数据',`<p class="muted">每天上海时间 08:00、12:00、23:00 同步云端已采集报表 · ${s.last_success?'最近成功 '+esc(dashboardStamp(s.last_success)):'等待首次同步'}${s.error?' · '+esc(s.error):''}</p><p class="muted">以下为源系统本月截至报表日期的数据，不随上方项目、日期筛选变化。广告消耗为平台报表金额；平台转化不等于CRM有效客户，净增关注不等于粉丝总数。缺失指标显示待更新。</p>${table(['平台','账号','来源','数据区间','广告消耗','曝光','播放','点击','平台转化','总粉丝','净增关注','发布数'],rows)}<p><a href="https://yifun-marketing.yifunlife.workers.dev" target="_blank" rel="noopener">打开运营系统查看明细</a></p>`);

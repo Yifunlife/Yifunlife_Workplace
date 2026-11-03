@@ -19,6 +19,7 @@ def init(db):
 
 def save(db,user,kind,p):
     core.permit(user,'admin','ceo')
+    if os.getenv('YIFUN_MARKETING_SYNC')=='1':raise core.Problem('运营中心已接入云端真实报表，请在运营系统维护来源数据。',409)
     account=core.need(db,'marketing_accounts',p.get('account_id'))
     if kind=='snapshot':
         day=core.day(p.get('day'))
@@ -40,6 +41,8 @@ def save(db,user,kind,p):
     raise core.Problem('未知测试操作')
 
 def report(db,start,end,today,currency='CNY'):
+    import marketing_cloud
+    if marketing_cloud.status(db)['enabled']:return marketing_cloud.account_report(db,start,end,today,currency)
     year=today[:4]+'-01-01';month=today[:7]+'-01'
     output=[]
     shared = os.environ.get('YIFUN_DEMO_MODE') == '1' and bool(db.execute("SELECT 1 FROM settings WHERE key='shared_department_demo_20261014_v2'").fetchone())

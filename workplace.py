@@ -35,6 +35,7 @@ def init():
         android_fleet.init(db);android_ops.init(db);software_work.init(db);api_registry.init(db)
     with database.connect() as db:
         account_reporting.init(db)
+        __import__("marketing_transition").run(db)
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_requests(email TEXT PRIMARY KEY,requested_at REAL NOT NULL)')
         db.execute('CREATE TABLE IF NOT EXISTS account_recovery_links(token_hash TEXT PRIMARY KEY,email TEXT NOT NULL,expires REAL NOT NULL,created_by TEXT NOT NULL)')
         import test_accounts
