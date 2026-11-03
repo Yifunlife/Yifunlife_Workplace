@@ -242,13 +242,16 @@ def save_design(db,user,p):
     event(db,user,'design',key,DESIGN_STATES[status] if not old or old['status']!=status else '更新设计任务',old,fields,fields['change_reason'] or fields['handoff_note'])
     return {'id':key}
 
-def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
+def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY',market=None):
     require_center(db,user,center)
     import aftercare_sync
     aftercare_sync.refresh(db)
     today=datetime.now(REPORTING_ZONE).date().isoformat()
     start=c.day(start) if start else today[:8]+'01';end=c.day(end) if end else today
     if start>end:raise c.Problem('开始日期不能晚于结束日期')
+    if center=='crm' and __import__('os').environ.get('YIFUN_CRM_SYNC')=='1':
+        return {'center':center,'title':NAMES[center],'period':{'from':start,'to':end},'currency':currency,'today':today,'updated_at':c.now(),'aftersales_tasks':[],'crm_cloud':__import__('crm_cloud').view(db,user,start,end,market),'sales':None}
+
     if currency not in CURRENCIES and not (center=='marketing' and currency=='OTHER'):raise c.Problem('请选择币种')
     if project:access.require(db,user,'projects',project)
     in_period=lambda v:bool(v and local_day(v) and start<=local_day(v).isoformat()<=end)
@@ -430,4 +433,5 @@ def dashboard(db,user,center,start=None,end=None,project=None,currency='CNY'):
     account_report=account_reporting.report(db,start,end,today,currency) if center=='marketing' else None
     import aftercare_sync
     shared_tasks=aftercare_sync.tasks(db,user,center,project) if center in ('engineering','factory','procurement','stock','aftersales') else []
-    return {'rd':__import__('product_rd').report(db,user) if center=='product_rd' else None,'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'marketing_cloud':__import__('marketing_cloud').status(db) if center=='marketing' else None,'account_reporting':account_report,'sales':sales,'members':[dict(row) for row in db.execute("SELECT e.id,e.name,e.role FROM center_members m JOIN employees e ON e.id=m.employee_id WHERE m.center=? AND e.status='active' ORDER BY e.name,e.id",(center,))] if center in ('product_rd','software','brand_visual') else [],'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}
+    if center=='aftersales' and __import__('os').environ.get('YIFUN_AFTERSALES_SYNC')=='1':shared_tasks=[r for r in shared_tasks if not str(r.get('id','')).startswith('DEMO-') and not str(r.get('project_id','')).startswith('DEMO-')]
+    return {'rd':__import__('product_rd').report(db,user) if center=='product_rd' else None,'aftersales_tasks':shared_tasks,'production':production_report,'procurement':procurement_report,'aftersales':aftersales_report,'engineering':engineering_report,'costing':costing_report,'design':design_report,'aftersales_sync':__import__('aftersales_cloud').status(db,user) if center=='aftersales' else None,'crm_cloud':__import__('crm_cloud').view(db,user,start,end,market) if center=='crm' and __import__('os').environ.get('YIFUN_CRM_SYNC')=='1' else None,'marketing_cloud':__import__('marketing_cloud').status(db) if center=='marketing' else None,'account_reporting':account_report,'sales':sales,'members':[dict(row) for row in db.execute("SELECT e.id,e.name,e.role FROM center_members m JOIN employees e ON e.id=m.employee_id WHERE m.center=? AND e.status='active' ORDER BY e.name,e.id",(center,))] if center in ('product_rd','software','brand_visual') else [],'center':center,'title':NAMES[center],'metrics':metrics,'rows':rows,'groups':groups,'notices':notices,'target':target,'period':{'from':start,'to':end},'today':today,'currency':currency,'updated_at':c.now(),'can_manage':user['role'] in MANAGERS}

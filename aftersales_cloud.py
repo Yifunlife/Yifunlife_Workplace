@@ -15,16 +15,16 @@ def stable(kind,key):return 'as-'+kind+'-'+hashlib.sha256(key.encode()).hexdiges
 def iso_ms(value):return datetime.fromtimestamp(int(value)/1000,timezone.utc).isoformat()
 def slot(at=None):
     at=(at or datetime.now(timezone.utc)).astimezone(ZONE)
-    if at.hour>=18:return at.date().isoformat()+'T18:00'
-    if at.hour>=8:return at.date().isoformat()+'T08:00'
-    return (at.date()-timedelta(days=1)).isoformat()+'T18:00'
+    for hour in (23,12,8):
+        if at.hour>=hour:return at.date().isoformat()+f'T{hour:02d}:00'
+    return (at.date()-timedelta(days=1)).isoformat()+'T23:00'
 def read_status(db):
     row=db.execute('SELECT value FROM settings WHERE key=?',(KEY,)).fetchone()
     return json.loads(row['value']) if row else {}
 def status(db,user=None):
     s=read_status(db)
     return {**{k:v for k,v in s.items() if k!='etag'},'enabled':os.environ.get('YIFUN_AFTERSALES_SYNC')=='1',
-            'schedule':['08:00','18:00'],'timezone':'Asia/Shanghai',
+            'schedule':['08:00','12:00','23:00'],'timezone':'Asia/Shanghai',
             'can_sync':bool(user and user['role'] in ('admin','ceo') and not runtime_config.read_only(user))}
 def save_status(db,s):db.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',(KEY,json.dumps(s,ensure_ascii=False)))
 def unique(rows,label):
@@ -76,7 +76,7 @@ def apply_snapshot(db,snapshot,actor):
                  'executionMethod':p.get('executionMethod') or p.get('method',''),'safetyLevel':p.get('safetyLevel',''),
                  'costResponsibility':p.get('costResponsibility') or p.get('cost',''),'sourceSystem':SOURCE,'sourceId':item['id'],
                  'sourceVersion':item['version'],'sourceStage':stage,'sourceWorkNo':p.get('workNo',''),'sourceRemoved':False,
-                 'sourceUrl':'https://yifun-aftersales.yifunlife.workers.dev/workspace'}
+                 'sourceUrl':'https://aftersales.shyiwan.com/workspace'}
         encoded=json.dumps(payload,ensure_ascii=False,sort_keys=True)
         if old and previous==payload and old['project_id']==pid:continue
         if old:db.execute('UPDATE service_tickets SET project_id=?,payload=?,version=version+1,updated_at=? WHERE id=?',(pid,encoded,iso_ms(item['updated_at']),tid))

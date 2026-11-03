@@ -17,6 +17,7 @@ import android_fleet
 import android_ops
 import software_work
 import aftercare
+import crm_cloud
 import marketing_cloud
 import aftersales_cloud
 import connections
@@ -153,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/internal/android-maintenance':
                 # This route is blocked at the public Worker; only scheduled private container fetches reach it.
                 if not runtime_config.container_mode() or self.headers.get('X-Yifun-Internal-Schedule')!='android-ops-v1':raise core.Problem('接口不存在',404)
-                android_ops.run_once();aftersales_cloud.refresh();marketing_cloud.refresh();return self.respond(200,{'ok':True})
+                android_ops.run_once();aftersales_cloud.refresh();marketing_cloud.refresh();crm_cloud.refresh();return self.respond(200,{'ok':True})
             if path=='/internal/database':
                 if not self.bridge():raise core.Problem('来源无效',403)
                 return self.respond(200,{'results':database.d1_batch(p.get('statements'))})
@@ -426,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
                     permitted={'factory':{'center-factory','production-wood','production-upholstery','production-paint','production-metal'},'aftersales':{'center-aftersales','center-aftersales-issues'}}.get(q('center'),{'center-'+str(q('center'))})
                     if column not in permitted:raise core.Problem('栏目不属于此中心',403)
                     cp.require(db,user,column)
-                    result=centers.dashboard(db,user,q('center'),q('from'),q('to'),q('project'),q('currency','CNY'))
+                    result=centers.dashboard(db,user,q('center'),q('from'),q('to'),q('project'),q('currency','CNY'),q('market'))
                     if column.startswith('production-'):
                         key=column.removeprefix('production-');production=result['production'];workshop=next(w for w in production['workshops'] if w['id']==key)
                         fields=('id','project_id','name','number','shared_test','delivery_date','days','engineering_owner','workshop_progress','workshop_state','workshop_blocked','blocker_reason','issue','progress','sales_owner','design_owner','production_parts','feedback_records')

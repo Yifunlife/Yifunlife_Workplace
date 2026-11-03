@@ -38,7 +38,7 @@ function dashboardExportLink(){
 let aftersalesSyncBusy=false;
 function aftersalesSyncNote(){
  const s=dashboardData.aftersales_sync;if(!s?.enabled)return '';
- return `<div class="ceo-note" role="status">售后数据：每天上海时间 08:00、18:00 自动同步 · ${s.last_success?'上次成功 '+esc(dashboardStamp(s.last_success))+' · '+Number(s.items||0)+' 条正式工单 · '+Number(s.pending_requests||0)+' 条待检查申请':'等待首次同步'}${s.error?' · '+esc(s.error):''} ${s.can_sync?button('dashboard-sync-aftersales',aftersalesSyncBusy?'同步中…':'立即同步','','secondary'):''}</div>`;
+ return `<div class="ceo-note" role="status">售后数据：每天上海时间 08:00、12:00、23:00 自动同步 · ${s.last_success?'上次成功 '+esc(dashboardStamp(s.last_success))+' · '+Number(s.items||0)+' 条正式工单 · '+Number(s.pending_requests||0)+' 条待检查申请':'等待首次同步'}${s.error?' · '+esc(s.error):''} ${s.can_sync?button('dashboard-sync-aftersales',aftersalesSyncBusy?'同步中…':'立即同步','','secondary'):''}</div>`;
 }
 function dashboardPage(){
   const d=dashboardData;

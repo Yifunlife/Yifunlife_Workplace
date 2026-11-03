@@ -88,6 +88,11 @@
       "binding": "MARKETING_REPORTING",
       "service": "yifun-marketing",
       "entrypoint": "MarketingReporting"
+    },
+    {
+      "binding": "CRM_REPORTING",
+      "service": "yifun-crm",
+      "entrypoint": "CRMReporting"
     }
   ]
 }

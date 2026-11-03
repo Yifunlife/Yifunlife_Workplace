@@ -56,5 +56,5 @@ class CloudSyncTest(unittest.TestCase):
    self.assertEqual(self.db.execute('SELECT payload FROM service_tickets').fetchone()[0],before)
    self.assertTrue(cloud.read_status(self.db)['error']);self.assertEqual(cloud.read_status(self.db)['slot'],'2026-10-23T08:00')
  def test_shanghai_schedule(self):
-  for stamp,expected in [('2026-10-22T23:59:00+00:00','2026-10-22T18:00'),('2026-10-23T00:00:00+00:00','2026-10-23T08:00'),('2026-10-23T09:59:00+00:00','2026-10-23T08:00'),('2026-10-23T10:00:00+00:00','2026-10-23T18:00')]:self.assertEqual(cloud.slot(datetime.fromisoformat(stamp)),expected)
+  for stamp,expected in [('2026-10-22T23:59:00+00:00','2026-10-22T23:00'),('2026-10-23T00:00:00+00:00','2026-10-23T08:00'),('2026-10-23T03:59:00+00:00','2026-10-23T08:00'),('2026-10-23T04:00:00+00:00','2026-10-23T12:00'),('2026-10-23T14:59:00+00:00','2026-10-23T12:00'),('2026-10-23T15:00:00+00:00','2026-10-23T23:00')]:self.assertEqual(cloud.slot(datetime.fromisoformat(stamp)),expected)
 if __name__=='__main__':unittest.main()

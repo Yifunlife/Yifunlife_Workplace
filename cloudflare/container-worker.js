@@ -16,6 +16,7 @@ export class WorkplaceContainer extends Container {
       YIFUN_CONTAINER_MODE: '1', YIFUN_AUTH_MODE: env.AUTH_MODE || 'access', YIFUN_PUBLIC_ORIGIN: env.PUBLIC_ORIGIN,
       YIFUN_OWNER_EMAIL: env.OWNER_EMAIL, YIFUN_VIEWER_EMAILS: env.VIEWER_EMAILS,
       YIFUN_DATA_ROOT: '/tmp/workplace-runtime', YIFUN_DEMO_MODE: '1',
+      YIFUN_CRM_SYNC: env.CRM_REPORTING ? '1' : '0',
       YIFUN_MARKETING_SYNC: env.MARKETING_REPORTING ? '1' : '0',
       YIFUN_AFTERSALES_SYNC: env.AFTERSALES_REPORTING ? '1' : '0',
       YIFUN_DATABASE_BACKEND: 'cloudflare', YIFUN_DATABASE_ENDPOINT: 'http://database.yifun.internal',
@@ -25,9 +26,9 @@ export class WorkplaceContainer extends Container {
   }
   async fetch(request) {
     // Replace startup variables retained by the pre-integration container once.
-    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('marketing-verified-final-v1')) {
+    if (this.env.MARKETING_REPORTING && !await this.ctx.storage.get('crm-and-aftersales-cloud-v1')) {
       await this.stop();
-      await this.ctx.storage.put('marketing-verified-final-v1', true);
+      await this.ctx.storage.put('crm-and-aftersales-cloud-v1', true);
     }
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/modules\/(quote|procurement|aftersales)(?:\/|$)/);
@@ -100,6 +101,7 @@ async function objectRequest(request, env, core = false) {
 }
 
 WorkplaceContainer.outboundByHost = {
+  'crm.yifun.internal': (request, env) => env.CRM_REPORTING.fetch(request),
   'marketing.yifun.internal': (request, env) => env.MARKETING_REPORTING.fetch(request),
   'aftersales.yifun.internal': (request, env) => env.AFTERSALES_REPORTING.fetch(request),
   'database.yifun.internal': (request, env) => env.BUSINESS_DATABASE.getByName('workplace-business-v1').fetch(request),

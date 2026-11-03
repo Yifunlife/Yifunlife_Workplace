@@ -168,7 +168,7 @@ def report(db, user, center=None, project=None, today=None):
     # Dedup by authoritative record, then scope; no limit before counts are calculated.
     unique={item['id']:item for item in collected}
     rows=[item for item in unique.values() if not center or center in item['centers']]
-    if center=='marketing' and os.getenv('YIFUN_MARKETING_SYNC')=='1':
+    if (center=='marketing' and os.getenv('YIFUN_MARKETING_SYNC')=='1') or (center=='aftersales' and os.getenv('YIFUN_AFTERSALES_SYNC')=='1') or (center=='crm' and os.getenv('YIFUN_CRM_SYNC')=='1'):
         rows=[r for r in rows if not r['record_id'].startswith('DEMO-') and not (r.get('project_id') or '').startswith('DEMO-')]
     rank={'overdue':0,'today':1,'soon':2,'pending':3}
     rows.sort(key=lambda r:(rank[r['urgency']],not r['blocked'],r['due_date'] or '9999',r['id']))

@@ -1,5 +1,5 @@
 """售后驾驶舱：共用工单、上海日期、项目权限和显式登记。"""
-import json
+import json,os
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 import core as c
@@ -77,10 +77,12 @@ def report(db, user, projects, today):
         payload = json.loads(ticket['payload'])
         if payload.get('sourceRemoved'):continue
         project = projects[pid]
+        if os.getenv('YIFUN_AFTERSALES_SYNC')=='1' and (ticket['id'].startswith('DEMO-') or project.get('notes')=='共享测试项目' or payload.get('sharedTest')):continue
         due = local_date(payload.get('dueDate')); stage = phase(payload); closed = stage=='已关闭'
         method = payload.get('executionMethod') or (payload.get('handling') if payload.get('handling') in METHODS else '')
         safety = payload.get('safetyLevel') or ''
         rows.append({'id':ticket['id'],'project_id':pid,'name':project['name'], 'product':payload.get('product',''), 'description':payload.get('description',''),
+            'cloud_source':payload.get('sourceSystem')=='yifun-aftersales','source_url':'https://aftersales.shyiwan.com/workspace',
             'shared_test':project.get('notes')=='共享测试项目' or payload.get('source')=='模拟测试',
             'created_date':local_date(ticket['created_at']), 'stage':stage, 'native_stage':payload.get('stage') or '接收反馈', 'closed':closed,
             'due_date':due, 'contract_deadline':local_date(payload.get('contractDeadline')),
