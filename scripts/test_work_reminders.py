@@ -88,4 +88,11 @@ class RemindersTest(unittest.TestCase):
         with patch.object(work_reminders,'datetime',Clock):
             self.assertEqual(work_reminders.report(self.db,self.admin)['today'],'2026-10-19')
 
+    def test_live_marketing_excludes_demo_reminders_only_in_that_center(self):
+        with patch.dict(os.environ,{'YIFUN_MARKETING_SYNC':'1'}):
+            live=work_reminders.report(self.db,self.admin,center='marketing')
+            self.assertFalse(any(r['record_id'].startswith('DEMO-') for r in live['items']+live['attention']))
+            all_centers=work_reminders.report(self.db,self.admin)
+            self.assertTrue(any(r['record_id'].startswith('DEMO-') for r in all_centers['items']+all_centers['attention']))
 if __name__=='__main__':unittest.main()
+
