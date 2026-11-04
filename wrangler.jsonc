@@ -50,7 +50,7 @@
   "containers": [
     {
       "class_name": "WorkplaceContainer",
-      "image": "registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:810aca0cf4a5d4f9e24b1ec14c73679a59361c1a",
+      "image": "registry.cloudflare.com/5a472d15dc37681abce4ab6e4eb152c3/yifunlife-workplace:81f71edaf80df6ff7b3b6a1ccd3160467918a150",
       "max_instances": 1,
       "instance_type": "standard-1"
     }
